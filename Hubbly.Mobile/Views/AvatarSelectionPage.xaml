@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Hubbly.Mobile.Views.AvatarSelectionPage"
+             Title="Create Avatar"
+             BackgroundColor="#F8FAFC">
+
+    <ScrollView>
+        <VerticalStackLayout Spacing="30" Padding="30">
+
+            <!-- Header -->
+            <VerticalStackLayout Spacing="15" HorizontalOptions="Center">
+                <Label Text="👤" FontSize="48" HorizontalOptions="Center"/>
+                <VerticalStackLayout Spacing="5">
+                    <Label Text="ВЫБЕРИТЕ АВАТАРА"
+                           FontSize="22" FontAttributes="Bold" TextColor="#1E293B"
+                           HorizontalOptions="Center"/>
+                    <Label Text="Пол и внешность вашего персонажа"
+                           FontSize="14" TextColor="#64748B" HorizontalOptions="Center"/>
+                </VerticalStackLayout>
+            </VerticalStackLayout>
+
+            <!-- Avatar Preview -->
+            <Frame BackgroundColor="White" Padding="0" HorizontalOptions="Center"
+                   HasShadow="True" CornerRadius="20">
+                <Grid WidthRequest="150" HeightRequest="200">
+                    <BoxView BackgroundColor="#F1F5F9" CornerRadius="20"/>
+                    <Label Text="{Binding AvatarEmoji}" FontSize="80"
+                           HorizontalOptions="Center" VerticalOptions="Center"/>
+                    <Frame BackgroundColor="#4F46E5" Padding="12,6" CornerRadius="12"
+                           HorizontalOptions="Center" VerticalOptions="End" Margin="0,0,0,15">
+                        <Label Text="{Binding GenderText}" FontSize="13"
+                               FontAttributes="Bold" TextColor="White"/>
+                    </Frame>
+                </Grid>
+            </Frame>
+
+            <!-- Gender Selection -->
+            <VerticalStackLayout Spacing="15">
+                <Label Text="ВЫБЕРИТЕ ПОЛ" FontSize="13" FontAttributes="Bold"
+                       TextColor="#64748B" Margin="0,0,0,5"/>
+
+                <HorizontalStackLayout Spacing="20" HorizontalOptions="Center">
+                    <!-- Male -->
+                    <Frame Padding="0"
+                           BackgroundColor="{Binding IsMaleSelected, Converter={StaticResource GenderSelectionConverter}}"
+                           WidthRequest="130" HeightRequest="150" CornerRadius="15" HasShadow="True">
+                        <VerticalStackLayout Spacing="12" Padding="25,30" HorizontalOptions="Center">
+                            <Label Text="♂" FontSize="40" HorizontalOptions="Center"
+                                   TextColor="{Binding IsMaleSelected, Converter={StaticResource GenderTextColorConverter}}"/>
+                            <Label Text="МУЖСКОЙ" FontSize="14" FontAttributes="Bold"
+                                   TextColor="{Binding IsMaleSelected, Converter={StaticResource GenderTextColorConverter}}"
+                                   HorizontalOptions="Center"/>
+                        </VerticalStackLayout>
+                        <Frame.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SelectMaleCommand}"/>
+                        </Frame.GestureRecognizers>
+                    </Frame>
+
+                    <!-- Female -->
+                    <Frame Padding="0"
+                           BackgroundColor="{Binding IsFemaleSelected, Converter={StaticResource GenderSelectionConverter}}"
+                           WidthRequest="130" HeightRequest="150" CornerRadius="15" HasShadow="True">
+                        <VerticalStackLayout Spacing="12" Padding="25,30" HorizontalOptions="Center">
+                            <Label Text="♀" FontSize="40" HorizontalOptions="Center"
+                                   TextColor="{Binding IsFemaleSelected, Converter={StaticResource GenderTextColorConverter}}"/>
+                            <Label Text="ЖЕНСКИЙ" FontSize="14" FontAttributes="Bold"
+                                   TextColor="{Binding IsFemaleSelected, Converter={StaticResource GenderTextColorConverter}}"
+                                   HorizontalOptions="Center"/>
+                        </VerticalStackLayout>
+                        <Frame.GestureRecognizers>
+                            <TapGestureRecognizer Command="{Binding SelectFemaleCommand}"/>
+                        </Frame.GestureRecognizers>
+                    </Frame>
+                </HorizontalStackLayout>
+            </VerticalStackLayout>
+
+            <!-- Continue Button -->
+            <Button Text="ВОЙТИ В ЧАТ"
+                    Command="{Binding ConfirmCommand}"
+                    HeightRequest="55"
+                    FontSize="16"
+                    FontAttributes="Bold"
+                    CornerRadius="12"
+                    BackgroundColor="#4F46E5"
+                    TextColor="White"
+                    IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"/>
+
+                <!-- Loading Indicator -->
+                <ActivityIndicator IsRunning="{Binding IsBusy}"
+                              IsVisible="{Binding IsBusy}"
+                              Color="#4F46E5"
+                              HorizontalOptions="Center"/>
+
+                <!-- Back Button -->
+                <Button Text="← Back to Welcome"
+                    Command="{Binding GoBackCommand}"
+                    BackgroundColor="Transparent"
+                    TextColor="#64748B"
+                    FontSize="14"
+                    HorizontalOptions="Center"/>
+
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

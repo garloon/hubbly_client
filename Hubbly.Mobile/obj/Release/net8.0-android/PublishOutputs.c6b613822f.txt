@@ -1,0 +1,3 @@
+D:\VSProjects\Hubbly.Client\Hubbly.Mobile\bin\Release\net8.0-android\publish\com.companyname.hubbly.mobile-Signed.apk
+D:\VSProjects\Hubbly.Client\Hubbly.Mobile\bin\Release\net8.0-android\publish\com.companyname.hubbly.mobile.apk
+D:\VSProjects\Hubbly.Client\Hubbly.Mobile\bin\Release\net8.0-android\publish\_Microsoft.Android.Resource.Designer.dll
