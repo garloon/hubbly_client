@@ -31,6 +31,9 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
 
+    - name: Install .NET workloads
+      run: dotnet workload install android wasm-tools-net8
+
     - name: Accept Android SDK licenses
       run: |
         yes | sdkmanager --licenses || true
