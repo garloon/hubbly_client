@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace Hubbly.Mobile.Models;
 
 /// <summary>
-/// Конфигурация аватара для клиента (DTO)
+/// Avatar configuration for client (DTO)
 /// </summary>
 public class AvatarConfigDto
 {
@@ -20,7 +20,7 @@ public class AvatarConfigDto
     [JsonPropertyName("components")]
     public Dictionary<string, string> Components { get; set; } = new();
 
-    // Статические методы
+    // Static methods
     public static AvatarConfigDto DefaultMale => new()
     {
         Gender = "male",
@@ -35,7 +35,7 @@ public class AvatarConfigDto
         Pose = "standing"
     };
 
-    // Сериализация
+    // Serialization
     public string ToJson()
     {
         return JsonSerializer.Serialize(this, new JsonSerializerOptions
@@ -61,6 +61,6 @@ public class AvatarConfigDto
         }
     }
 
-    // Получить Emoji для превью
+    // Get emoji for preview
     public string GetEmoji() => Gender.ToLower() == "female" ? "👩" : "👨";
 }

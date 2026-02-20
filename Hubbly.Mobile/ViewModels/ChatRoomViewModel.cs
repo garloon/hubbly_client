@@ -55,7 +55,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
     private ObservableCollection<AvatarPresence> _onlineAvatars = new();
 
     [ObservableProperty]
-    private string _roomName = "Подключение...";
+    private string _roomName = "Connecting...";
 
     [ObservableProperty]
     private string _roomStatus = "0/50";
@@ -101,13 +101,13 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
         _typingDebouncer = new Debouncer(TimeSpan.FromSeconds(1), SendTypingIndicatorInternal);
         _presenceDebouncer = new Debouncer(TimeSpan.FromMilliseconds(500), UpdatePresenceInternal);
 
-        // Подписываемся на изменения коллекции для автоскролла
+        // Subscribe to collection changes for auto-scrolling
         _messages.CollectionChanged += OnMessagesCollectionChanged;
 
         _logger.LogInformation("ChatRoomViewModel created");
     }
 
-    #region Инициализация и загрузка данных
+    #region Initialization and Data Loading
 
     private async void LoadUserData()
     {
@@ -115,7 +115,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
         {
             _logger.LogInformation("Loading user data");
 
-            // Загружаем ID пользователя
+            // Load user ID
             _userId = await _tokenManager.GetAsync("user_id") ?? string.Empty;
             _logger.LogInformation("User ID from TokenManager: '{UserId}'", _userId);
             
@@ -126,13 +126,13 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
                 _logger.LogInformation("User ID from encrypted storage: '{UserId}'", _userId);
             }
 
-            // Загружаем никнейм
+            // Load nickname
             _nickname = await _tokenManager.GetNicknameAsync();
             _logger.LogInformation("Nickname: '{Nickname}'", _nickname);
             
             OnPropertyChanged(nameof(Nickname));
 
-            // Загружаем конфиг аватара (зашифрованный)
+            // Load avatar config (encrypted)
             var avatarConfigJson = await _tokenManager.GetEncryptedAsync("avatar_config") ?? "{}";
             if (!string.IsNullOrEmpty(avatarConfigJson) && avatarConfigJson != "{}")
             {
@@ -153,7 +153,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
                 CurrentUserAvatar = new AvatarConfigDto { Gender = "male" };
             }
 
-            // Добавляем себя в список присутствия
+            // Add self to presence list
             if (Guid.TryParse(_userId, out var userIdGuid))
             {
                 var selfPresence = new AvatarPresence
@@ -231,7 +231,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
 
     #endregion
 
-    #region Команды
+    #region Commands
 
     [RelayCommand]
     public async Task ConnectToChat()
@@ -275,7 +275,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
 
             IsConnected = true;
 
-            // Добавляем себя в 3D сцену
+            // Add self to 3D scene
             _ = Task.Run(AddSelfTo3DScene);
         }
         catch (UnauthorizedAccessException)
@@ -328,7 +328,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
 
             _logger.LogInformation("Disconnecting from chat...");
 
-            // Очищаем 3D сцену
+            // Clear 3D scene
             if (_is3DEnabled)
             {
                 await _webViewService.ClearAvatarsAsync();
@@ -339,7 +339,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
             IsConnected = false;
             IsInitialPresenceLoaded = false;
 
-            // Очищаем коллекции
+            // Clear collections
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 Messages.Clear();
@@ -384,7 +384,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
         {
             var messageToSend = MessageText.Trim();
             
-            // Виброотклик - с обработкой ошибок
+            // Vibration feedback - with error handling
             try
             {
                 var status = await Permissions.CheckStatusAsync<Permissions.Vibrate>();
@@ -400,7 +400,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
 
             HideKeyboard();
 
-            // Очищаем поле сразу
+            // Clear the message field immediately
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 MessageText = string.Empty;
@@ -499,7 +499,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
 
     #endregion
 
-    #region Обработчики событий SignalR
+    #region SignalR Event Handlers
 
     private void OnMessageReceived(object sender, ChatMessage message)
     {
@@ -537,11 +537,11 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
 
             await MainThread.InvokeOnMainThreadAsync(async () =>
             {
-                // Обновляем счетчик
+                // Update counter
                 UsersInRoom++;
                 RoomStatus = $"{UsersInRoom}/{MaxUsers}";
 
-                // Добавляем системное сообщение
+                // Add system message
                 Messages.Add(new ChatMessage
                 {
                     SenderId = "system",
@@ -551,7 +551,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
                     IsCurrentUser = false
                 });
 
-                // Получаем пол из конфига аватара
+                // Get gender from avatar config
                 string gender = "male";
                 try
                 {
@@ -566,7 +566,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
                     gender = "male";
                 }
 
-                // Добавляем в 3D сцену
+                // Add to 3D scene
                 await Ensure3DAvatarPresence(userData.UserId, userData.Nickname, gender);
             });
         }
@@ -587,24 +587,24 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
                 UsersInRoom = Math.Max(0, UsersInRoom - 1);
                 RoomStatus = $"{UsersInRoom}/{MaxUsers}";
 
-                // Удаляем из списка присутствия
+                // Remove from presence list
                 var avatar = OnlineAvatars.FirstOrDefault(a => a.UserId.ToString() == data.UserId);
                 if (avatar != null)
                 {
                     OnlineAvatars.Remove(avatar);
                 }
 
-                // Добавляем системное сообщение с ником
+                // Add system message with nickname
                 Messages.Add(new ChatMessage
                 {
                     SenderId = "system",
                     SenderNickname = "System",
-                    Content = $"👋 {data.Nickname} покинул чат",
+                    Content = $"👋 {data.Nickname} left the chat",
                     SentAt = DateTimeOffset.UtcNow,
                     IsCurrentUser = false
                 });
 
-                // Удаляем из 3D сцены
+                // Remove from 3D scene
                 if (_is3DEnabled)
                 {
                     await _webViewService.RemoveAvatarAsync(data.UserId);
@@ -621,13 +621,13 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
     {
         try
         {
-            if (userId == _userId) return; // Игнорируем себя
+            if (userId == _userId) return; // Ignore self
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 IsTypingVisible = true;
 
-                // Скрываем через 3 секунды
+                // Hide after 3 seconds
                 Task.Delay(3000).ContinueWith(_ =>
                 {
                     MainThread.BeginInvokeOnMainThread(() =>
@@ -692,7 +692,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
                     catch { gender = "male"; }
 
                     await Ensure3DAvatarPresence(user.UserId, user.Nickname, gender);
-                    await Task.Delay(50, _cts.Token); // Небольшая пауза между добавлениями
+                    await Task.Delay(50, _cts.Token); // Small pause between additions
                 }
 
                 IsInitialPresenceLoaded = true;
@@ -770,7 +770,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
 
     #endregion
 
-    #region Обработчики событий WebView
+    #region WebView Event Handlers
 
     private async void OnAvatarClicked(object sender, string userId)
     {
@@ -782,7 +782,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
             _logger.LogInformation("Avatar clicked - UserId: {UserId}, CurrentUser: {CurrentUserId}",
                 userId, normalizedUserId);
 
-            // Проверяем, свой ли аватар
+            // Check if it's own avatar
             if (Guid.TryParse(userId, out var clickedGuid) &&
                 Guid.TryParse(normalizedUserId, out var currentGuid) &&
                 clickedGuid == currentGuid)
@@ -811,7 +811,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
 
     #endregion
 
-    #region Приватные методы
+    #region Private methods
 
     private void HideKeyboard()
     {
@@ -839,7 +839,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
         {
             _logger.LogInformation("Adding self to 3D scene");
 
-            // Ждем готовность сцены с таймаутом
+            // Wait for scene readiness with timeout
             var sceneReady = await WaitForSceneWithTimeout(5000);
 
             if (!sceneReady)
@@ -914,7 +914,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
 
             _processedUserIds.Add(userId);
 
-            // Добавляем в UI список
+            // Add to UI list
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 if (!OnlineAvatars.Any(a => a.UserId.ToString() == userId))
@@ -930,7 +930,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
                 }
             });
 
-            // Добавляем в 3D сцену
+            // Add to 3D scene
             var success = await _webViewService.AddAvatarAsync(userId, nickname, gender);
 
             if (success)
@@ -960,20 +960,20 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
             }
 
             var action = await page.DisplayActionSheet(
-                "Действие с аватаром",
-                "Отмена",
+                "Avatar Action",
+                "Cancel",
                 null,
-                "👏 Похлопать",
-                "👋 Помахать");
+                "👏 Clap",
+                "👋 Wave");
 
             _logger.LogDebug("Action selected: {Action}", action);
 
             switch (action)
             {
-                case "👏 Похлопать":
+                case "👏 Clap":
                     await SendAnimationCommand.ExecuteAsync("clap");
                     break;
-                case "👋 Помахать":
+                case "👋 Wave":
                     await SendAnimationCommand.ExecuteAsync("wave");
                     break;
             }
@@ -993,7 +993,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
     {
         if (e.Action == NotifyCollectionChangedAction.Add)
         {
-            // Триггерим автоскролл
+            // Trigger auto-scroll
             _presenceDebouncer.Invoke();
         }
     }
@@ -1051,7 +1051,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
 
     #endregion
 
-    #region Жизненный цикл
+    #region Lifecycle
 
     public async Task OnAppearing()
     {
@@ -1060,7 +1060,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
         LoadUserData();
         InitializeSignalREvents();
 
-        // Проверяем здоровье сервера
+        // Check server health
         var authService = MauiProgram.ServiceProvider.GetRequiredService<AuthService>();
         var isAvailable = await authService.CheckServerHealthAsync();
 
@@ -1071,7 +1071,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
             return;
         }
 
-        // Подключаемся к чату
+        // Connect to chat
         if (!IsConnected && !IsBusy)
         {
             await ConnectToChat();
@@ -1140,7 +1140,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
 
     #endregion
 
-    #region Вспомогательные классы
+    #region Helper Classes
 
     private class Debouncer : IDisposable
     {

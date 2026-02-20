@@ -11,14 +11,14 @@ public class CustomWebViewHandler : WebViewHandler
     {
         base.ConnectHandler(platformView);
 
-        // Включаем JavaScript
+        // Enable JavaScript
         platformView.Settings.JavaScriptEnabled = true;
         platformView.Settings.DomStorageEnabled = true;
         platformView.Settings.AllowFileAccess = true;
         platformView.Settings.AllowContentAccess = true;
         platformView.Settings.MixedContentMode = MixedContentHandling.AlwaysAllow;
 
-        // 👇🏻 Явно приводим к MAUI WebView
+        // 👇🏻 Explicitly cast to MAUI WebView
         if (VirtualView is Microsoft.Maui.Controls.WebView mauiWebView)
         {
             var bridge = new WebViewBridge(mauiWebView);

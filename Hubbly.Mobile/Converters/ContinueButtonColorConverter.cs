@@ -9,8 +9,8 @@ public class ContinueButtonColorConverter : IValueConverter
         if (value is bool isEnabled)
         {
             return isEnabled ?
-                Color.FromArgb("#4F46E5") :  // Enabled - фиолетовый
-                Color.FromArgb("#94A3B8");   // Disabled - серый
+                Color.FromArgb("#4F46E5") :  // Enabled - purple
+                Color.FromArgb("#94A3B8");   // Disabled - gray
         }
         return Color.FromArgb("#94A3B8");
     }

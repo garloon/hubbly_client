@@ -9,8 +9,8 @@ public class GenderTextColorConverter : IValueConverter
         if (value is bool isSelected)
         {
             return isSelected ?
-                Color.FromArgb("#FFFFFF") :  // Selected - белый текст
-                Color.FromArgb("#64748B");   // Not selected - серый текст
+                Color.FromArgb("#FFFFFF") :  // Selected - white text
+                Color.FromArgb("#64748B");   // Not selected - gray text
         }
         return Color.FromArgb("#64748B");
     }

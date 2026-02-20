@@ -23,7 +23,7 @@ public partial class ChatMessage : ObservableObject
     public bool IsNotSystemMessage => SenderId != "system";
     public bool IsOtherUserMessage => IsNotSystemMessage && !IsCurrentUser;
 
-    // Добавьте для отладки
+    // Added for debugging
     public override string ToString()
     {
         return $"{_senderNickname}: {_content}";

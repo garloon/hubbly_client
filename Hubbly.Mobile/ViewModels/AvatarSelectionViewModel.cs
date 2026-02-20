@@ -51,7 +51,7 @@ public partial class AvatarSelectionViewModel : ObservableObject, IDisposable, I
         _logger.LogInformation("AvatarSelectionViewModel created");
     }
 
-    #region Команды
+    #region Commands
 
     [RelayCommand]
     private void SelectMale()
@@ -86,7 +86,7 @@ public partial class AvatarSelectionViewModel : ObservableObject, IDisposable, I
     [RelayCommand]
     private async Task Confirm()
     {
-        // Защита от повторного нажатия
+        // Protection against repeated clicks
         if (IsBusy)
         {
             _logger.LogWarning("Confirm: Already busy, ignoring click");
@@ -107,7 +107,7 @@ public partial class AvatarSelectionViewModel : ObservableObject, IDisposable, I
 
             _logger.LogInformation("Starting avatar confirmation process with gender: {Gender}", SelectedGender);
 
-            // 1. Проверяем сервер
+            // 1. Check server
             var isAvailable = await _authService.CheckServerHealthAsync();
             if (!isAvailable)
             {
@@ -116,7 +116,7 @@ public partial class AvatarSelectionViewModel : ObservableObject, IDisposable, I
                 return;
             }
 
-            // 2. Создаем конфиг аватара
+            // 2. Create avatar config
             var avatarConfig = new AvatarConfigDto
             {
                 Gender = SelectedGender,
@@ -125,7 +125,7 @@ public partial class AvatarSelectionViewModel : ObservableObject, IDisposable, I
             };
             var configJson = avatarConfig.ToJson();
 
-            // 3. Аутентифицируемся
+            // 3. Authenticate
             _logger.LogInformation("Authenticating as guest with avatar");
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
@@ -133,12 +133,12 @@ public partial class AvatarSelectionViewModel : ObservableObject, IDisposable, I
 
             var authResponse = await _authService.AuthenticateGuestWithAvatarAsync(configJson);
 
-            // 4. Сохраняем токены
+            // 4. Save tokens
             await _tokenManager.SetAsync("access_token", authResponse.AccessToken, TimeSpan.FromMinutes(15));
             await _tokenManager.SetAsync("refresh_token", authResponse.RefreshToken, TimeSpan.FromDays(7));
             await _tokenManager.SetAsync("user_id", authResponse.User.Id.ToString());
 
-            // 5. Сохраняем данные пользователя (зашифрованные)
+            // 5. Save user data (encrypted)
             if (!string.IsNullOrEmpty(authResponse.User.Nickname))
             {
                 await _tokenManager.SetEncryptedAsync("nickname", authResponse.User.Nickname);
@@ -150,7 +150,7 @@ public partial class AvatarSelectionViewModel : ObservableObject, IDisposable, I
 
             _logger.LogInformation("✅ Avatar created successfully for user {UserId}", authResponse.User.Id);
 
-            // 6. Переходим в чат
+            // 6. Navigate to chat
             await _navigationService.NavigateToAsync("//ChatRoomPage");
         }
         catch (OperationCanceledException)
@@ -223,7 +223,7 @@ public partial class AvatarSelectionViewModel : ObservableObject, IDisposable, I
 
     #endregion
 
-    #region Жизненный цикл
+    #region Lifecycle
 
     partial void OnSelectedGenderChanged(string value)
     {

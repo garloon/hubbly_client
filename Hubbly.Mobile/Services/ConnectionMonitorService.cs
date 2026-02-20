@@ -44,16 +44,16 @@ public class ConnectionMonitorService : BackgroundService
 
     private async Task CheckConnections(CancellationToken cancellationToken)
     {
-        // Проверяем состояние SignalR
+        // Check SignalR connection status
         using var scope = _serviceProvider.CreateScope();
 
         var signalRService = scope.ServiceProvider.GetRequiredService<SignalRService>();
         var navigationService = scope.ServiceProvider.GetRequiredService<INavigationService>();
 
-        // Получаем текущую страницу
+        // Get current page
         var currentPage = await navigationService.GetCurrentPageAsync();
 
-        // Если мы в чате, проверяем соединение
+        // If we are in chat, check connection
         if (currentPage?.BindingContext is ViewModels.ChatRoomViewModel chatViewModel)
         {
             if (!signalRService.IsConnected && Connectivity.NetworkAccess == NetworkAccess.Internet)

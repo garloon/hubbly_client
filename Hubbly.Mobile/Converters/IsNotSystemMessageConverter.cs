@@ -7,7 +7,7 @@ public class IsNotSystemMessageConverter : IValueConverter
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
         var result = value is string senderId && senderId != "system";
-        // Раскомментируйте для отладки:
+        // Uncomment for debugging:
         // Console.WriteLine($"IsNotSystemMessageConverter: Input='{value}', Result={result}");
         return result;
     }

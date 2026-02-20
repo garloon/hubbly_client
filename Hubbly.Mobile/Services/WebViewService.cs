@@ -29,13 +29,13 @@ public class WebViewService : IDisposable
     private bool _disposed;
     private Timer _queueTimer;
 
-    // События
+    // Events
     public event EventHandler<string> OnSceneReady;
     public event EventHandler<string> OnSceneError;
     public event EventHandler<JsonElement> OnWebViewMessage;
     public event EventHandler<string> OnAvatarClicked;
 
-    // Свойства
+    // Properties
     public bool IsSceneReady => _isSceneReady;
     public bool IsInitialized => _isInitialized;
 
@@ -43,12 +43,12 @@ public class WebViewService : IDisposable
     {
         _logger = logger;
 
-        // Таймер для обработки очереди (каждые 2 секунды)
+        // Timer for processing the queue (every 2 seconds)
         _queueTimer = new Timer(ProcessAvatarQueue, null,
             TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
     }
 
-    #region Публичные методы
+    #region Public Methods
 
     public void Initialize(WebView webView)
     {
@@ -65,7 +65,7 @@ public class WebViewService : IDisposable
 
         _logger.LogInformation("WebViewService: Initialized with Three.js scene");
 
-        // Подписываемся на события навигации
+        // Subscribe to navigation events
         _webView.Navigated += OnWebViewNavigated;
     }
 
@@ -100,7 +100,7 @@ public class WebViewService : IDisposable
 
         try
         {
-            // Проверяем, не существует ли уже такой аватар
+            // Check if avatar already exists
             var existingAvatars = await GetAvatarsAsync(_cts.Token);
             if (existingAvatars.Any(a => a.userId == userId))
             {
@@ -205,7 +205,7 @@ public class WebViewService : IDisposable
 
             var result = await EvaluateJavaScriptAsync(js, _cts.Token);
 
-            // Очищаем очередь
+            // Clear the queue
             lock (_pendingAvatarQueue)
             {
                 _pendingAvatarQueue.Clear();
@@ -407,7 +407,7 @@ public class WebViewService : IDisposable
 
         try
         {
-            // Ограничиваем размер
+            // Limit size
             if (message?.Length > 10000)
             {
                 _logger.LogWarning("HandleJsMessage: Message too large ({Length} bytes)", message?.Length ?? 0);
@@ -419,7 +419,7 @@ public class WebViewService : IDisposable
             using JsonDocument doc = JsonDocument.Parse(message);
             var root = doc.RootElement;
 
-            // Проверяем наличие обязательных полей
+            // Check for required fields
             if (!root.TryGetProperty("type", out var typeElement))
             {
                 _logger.LogWarning("HandleJsMessage: Missing 'type' field");
@@ -433,14 +433,14 @@ public class WebViewService : IDisposable
                 return;
             }
 
-            // Проверяем, разрешен ли такой тип сообщения
+            // Check if this message type is allowed
             if (!_allowedMessageTypes.Contains(typeStr))
             {
                 _logger.LogWarning($"HandleJsMessage: Invalid message type: {typeStr}");
                 return;
             }
 
-            // Обрабатываем разные типы сообщений
+            // Handle different message types
             switch (typeStr)
             {
                 case "scene_ready":
@@ -489,17 +489,17 @@ public class WebViewService : IDisposable
 
         _logger.LogInformation("WebViewService: Cleaning up...");
 
-        // Отменяем все операции
+        // Cancel all operations
         _cts.Cancel();
 
-        // Отписываемся от событий
+        // Unsubscribe from events
         if (_webView != null)
         {
             _webView.Navigated -= OnWebViewNavigated;
             _webView = null;
         }
 
-        // Очищаем очередь
+        // Clear the queue
         lock (_pendingAvatarQueue)
         {
             _pendingAvatarQueue.Clear();
@@ -513,7 +513,7 @@ public class WebViewService : IDisposable
 
     #endregion
 
-    #region Приватные методы
+    #region Private Methods
 
     private async void OnWebViewNavigated(object sender, WebNavigatedEventArgs e)
     {
@@ -523,10 +523,10 @@ public class WebViewService : IDisposable
 
             if (e.Result == WebNavigationResult.Success)
             {
-                // Даем время Three.js загрузиться
+                // Give Three.js time to load
                 await Task.Delay(2000, _cts.Token);
 
-                // Проверяем готовность сцены
+                // Check scene readiness
                 await CheckSceneStatus();
             }
             else
@@ -596,7 +596,7 @@ public class WebViewService : IDisposable
 
         try
         {
-            // Ограничиваем логирование длинных скриптов
+            // Limit logging of long scripts
             var logScript = script.Length > 100 ? script.Substring(0, 100) + "..." : script;
             _logger.LogDebug($"WebViewService: Executing JS: {logScript}");
 
@@ -607,7 +607,7 @@ public class WebViewService : IDisposable
                 try
                 {
                     using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    cts.CancelAfter(TimeSpan.FromSeconds(10)); // Таймаут 10 секунд
+                    cts.CancelAfter(TimeSpan.FromSeconds(10)); // 10 second timeout
 
                     var jsResult = await _webView.EvaluateJavaScriptAsync(script);
                     result = jsResult?.ToString() ?? string.Empty;
@@ -649,7 +649,7 @@ public class WebViewService : IDisposable
                             return 'API_NOT_AVAILABLE';
                         }}
                         
-                        // Проверяем, есть ли уже такой аватар
+                        // Check if avatar already exists
                         var exists = window.hubbly3d.getAvatars?.().some(a => a.userId === '{safeUserId}');
                         if (exists) {{
                             console.log('JS: Avatar {safeNickname} already exists');
@@ -706,7 +706,7 @@ public class WebViewService : IDisposable
             {
                 if (_cts.IsCancellationRequested) break;
 
-                // Проверяем, готова ли сцена
+                // Check if scene is ready
                 if (!_isSceneReady)
                 {
                     _logger.LogDebug("WebViewService: Scene not ready, re-queueing...");
@@ -726,7 +726,7 @@ public class WebViewService : IDisposable
                     _logger.LogError(ex, "WebViewService: Queue task error");
                 }
 
-                // Пауза между аватарами для плавности
+                // Pause between avatars for smoothness
                 await Task.Delay(150, _cts.Token);
             }
         }
@@ -762,7 +762,7 @@ public class WebViewService : IDisposable
                 return;
             }
 
-            // Проверяем формат userId (GUID)
+            // Validate userId format (GUID)
             if (!Guid.TryParse(userId, out _))
             {
                 _logger.LogWarning($"HandleAvatarClicked: Invalid userId format: {userId}");
@@ -807,16 +807,16 @@ public class WebViewService : IDisposable
 
         _logger.LogInformation("WebViewService: Disposing...");
 
-        // Отменяем все операции
+        // Cancel all operations
         _cts.Cancel();
 
-        // Останавливаем таймер
+        // Stop the timer
         _queueTimer?.Dispose();
 
-        // Очищаем ресурсы
+        // Clean up resources
         Cleanup();
 
-        // Освобождаем семафоры
+        // Dispose semaphores
         _avatarLock?.Dispose();
         _sceneLock?.Dispose();
         _cts?.Dispose();
@@ -829,7 +829,7 @@ public class WebViewService : IDisposable
 
     #endregion
 
-    #region Вспомогательные классы
+    #region Helper Classes
 
     public class AvatarInfo
     {

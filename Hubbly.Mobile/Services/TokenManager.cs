@@ -21,11 +21,11 @@ public class TokenManager : IDisposable
         _logger = logger;
         _encryption = encryption ?? throw new ArgumentNullException(nameof(encryption));
 
-        // Загружаем токены из хранилища при старте
+        // Load tokens from storage on startup
         Task.Run(async () => await LoadTokensFromStorageAsync());
     }
 
-    #region Публичные методы
+    #region Public Methods
 
     public async Task SetAsync(string key, string value, TimeSpan? expiresIn = null)
     {
@@ -47,10 +47,10 @@ public class TokenManager : IDisposable
                 : null
         };
 
-        // Сохраняем в кэш
+        // Store in cache
         _tokenCache[key] = tokenInfo;
 
-        // Сохраняем в постоянное хранилище в фоне
+        // Save to persistent storage in background
         _ = Task.Run(async () => await SaveToStorageAsync(key, tokenInfo));
     }
 
@@ -75,7 +75,7 @@ public class TokenManager : IDisposable
         if (authService == null)
             throw new ArgumentNullException(nameof(authService));
 
-        // 1. Проверяем текущий токен
+        // 1. Check current token
         var tokenInfo = await GetTokenInfoAsync("access_token");
         if (tokenInfo != null && !tokenInfo.IsExpired)
         {
@@ -83,7 +83,7 @@ public class TokenManager : IDisposable
             return tokenInfo.Value;
         }
 
-        // 2. Используем паттерн "async lazy initialization"
+        // 2. Use "async lazy initialization" pattern
         if (!await _refreshLock.WaitAsync(TimeSpan.FromSeconds(5)))
         {
             _logger.LogError("TokenManager: Failed to acquire refresh lock within 5 seconds");
@@ -92,21 +92,21 @@ public class TokenManager : IDisposable
 
         try
         {
-            // Double-check после получения лока
+            // Double-check after acquiring lock
             tokenInfo = await GetTokenInfoAsync("access_token");
             if (tokenInfo != null && !tokenInfo.IsExpired)
             {
                 return tokenInfo.Value;
             }
 
-            // Если уже обновляется - присоединяемся к существующей задаче
+            // If already refreshing - join existing task
             if (_isRefreshing && _currentRefreshTask != null)
             {
                 _logger.LogInformation("TokenManager: Refresh already in progress, waiting...");
                 return await _currentRefreshTask;
             }
 
-            // Запускаем обновление
+            // Start refresh
             _isRefreshing = true;
             _currentRefreshTask = RefreshTokenInternalAsync(authService);
 
@@ -130,7 +130,7 @@ public class TokenManager : IDisposable
         {
             _tokenCache.Clear();
 
-            // Очищаем SecureStorage
+            // Clear SecureStorage
             try
             {
                 SecureStorage.RemoveAll();
@@ -140,7 +140,7 @@ public class TokenManager : IDisposable
                 _logger.LogError(ex, "Failed to clear SecureStorage");
             }
 
-            // Очищаем Preferences
+            // Clear Preferences
             try
             {
                 Preferences.Clear();
@@ -174,12 +174,12 @@ public class TokenManager : IDisposable
 
     public async Task<string> GetNicknameAsync()
     {
-        // Сначала проверяем кэш
+        // Check cache first
         var cached = await GetAsync("nickname");
         if (!string.IsNullOrEmpty(cached))
             return cached;
 
-        // Пробуем Preferences как fallback (должно быть зашифровано)
+        // Try Preferences as fallback (should be encrypted)
         var pref = await GetEncryptedAsync("nickname");
         if (!string.IsNullOrEmpty(pref))
         {
@@ -192,7 +192,7 @@ public class TokenManager : IDisposable
 
     #endregion
 
-    #region Encrypted storage for sensitive data (not just tokens)
+    #region Encrypted Storage for Sensitive Data (Not Just Tokens)
 
     public Task SetEncryptedAsync(string key, string value)
     {
@@ -254,17 +254,17 @@ public class TokenManager : IDisposable
 
     #endregion
 
-    #region Приватные методы
+    #region Private Methods
 
     private async Task<TokenInfo?> GetTokenInfoAsync(string key)
     {
-        // Проверяем кэш
+        // Check cache
         if (_tokenCache.TryGetValue(key, out var cached))
         {
             return cached;
         }
 
-        // Пытаемся загрузить из хранилища
+        // Try to load from storage
         return await LoadFromStorageAsync(key);
     }
 
@@ -272,7 +272,7 @@ public class TokenManager : IDisposable
     {
         try
         {
-            // Пробуем SecureStorage
+            // Try SecureStorage
             var value = await SecureStorage.GetAsync(key);
             var expiresStr = await SecureStorage.GetAsync($"{key}_expires");
 
@@ -286,7 +286,7 @@ public class TokenManager : IDisposable
                     tokenInfo.ExpiresAt = expires;
                 }
 
-                // Сохраняем в кэш
+                // Store in cache
                 _tokenCache[key] = tokenInfo;
 
                 return tokenInfo;
@@ -297,7 +297,7 @@ public class TokenManager : IDisposable
             _logger.LogError(ex, "Failed to load {Key} from SecureStorage", key);
         }
 
-        // Fallback к Preferences (с расшифровкой)
+        // Fallback to Preferences (with decryption)
         try
         {
             var prefValue = Preferences.Get(key, string.Empty);
@@ -305,7 +305,7 @@ public class TokenManager : IDisposable
 
             if (!string.IsNullOrEmpty(prefValue))
             {
-                // Расшифровываем значение
+                // Decrypt value
                 var decryptedValue = _encryption.Decrypt(prefValue);
                 var tokenInfo = new TokenInfo { Value = decryptedValue };
 
@@ -315,7 +315,7 @@ public class TokenManager : IDisposable
                     tokenInfo.ExpiresAt = expires;
                 }
 
-                // Сохраняем в кэш
+                // Store in cache
                 _tokenCache[key] = tokenInfo;
 
                 return tokenInfo;
@@ -358,7 +358,7 @@ public class TokenManager : IDisposable
 
         try
         {
-            // Сохраняем в SecureStorage (already encrypted by OS)
+            // Save to SecureStorage (already encrypted by OS)
             await SecureStorage.SetAsync(key, tokenInfo.Value);
 
             if (tokenInfo.ExpiresAt.HasValue)
@@ -366,7 +366,7 @@ public class TokenManager : IDisposable
                 await SecureStorage.SetAsync($"{key}_expires", tokenInfo.ExpiresAt.Value.ToString("o"));
             }
 
-            // Дублируем в Preferences с дополнительным шифрованием
+            // Duplicate in Preferences with additional encryption
             var encryptedValue = _encryption.Encrypt(tokenInfo.Value);
             Preferences.Set(key, encryptedValue);
 
@@ -415,7 +415,7 @@ public class TokenManager : IDisposable
 
             var authResponse = await authService.RefreshTokenAsync(refreshToken, deviceId);
 
-            // Сохраняем новые токены
+            // Save new tokens
             await SetAsync("access_token", authResponse.AccessToken, TimeSpan.FromMinutes(15));
             await SetAsync("refresh_token", authResponse.RefreshToken, TimeSpan.FromDays(7));
 
@@ -436,7 +436,7 @@ public class TokenManager : IDisposable
         {
             _logger.LogError(ex, "TokenManager: Refresh failed - unauthorized");
 
-            // При критической ошибке аутентификации - очищаем всё
+            // On critical auth error - clear everything
             Clear();
 
             return null;
@@ -480,7 +480,7 @@ public class TokenManager : IDisposable
 
     #endregion
 
-    #region Внутренние классы
+    #region Internal Classes
 
     private class TokenInfo
     {

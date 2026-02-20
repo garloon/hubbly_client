@@ -2,7 +2,7 @@
 
 namespace Hubbly.Mobile.Models;
 
-// Для события UserJoined
+// For UserJoined event
 public class UserJoinedData
 {
     [JsonPropertyName("userId")]
@@ -18,7 +18,7 @@ public class UserJoinedData
     public DateTimeOffset JoinedAt { get; set; }
 }
 
-// Для события UserTyping
+// For UserTyping event
 public class UserTypingData
 {
     [JsonPropertyName("userId")]
@@ -28,7 +28,7 @@ public class UserTypingData
     public string Nickname { get; set; } = string.Empty;
 }
 
-// Для события UserLeft
+// For UserLeft event
 public class UserLeftData
 {
     [JsonPropertyName("userId")]

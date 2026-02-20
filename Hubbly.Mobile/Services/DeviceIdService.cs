@@ -20,25 +20,25 @@ public class DeviceIdService : IDisposable
         _encryption = encryption ?? throw new ArgumentNullException(nameof(encryption));
     }
 
-    #region Публичные методы
+    #region Public Methods
 
     public string GetPersistentDeviceId()
     {
         ThrowIfDisposed();
 
-        // Возвращаем кэш, если есть
+        // Return cached value if available
         if (!string.IsNullOrEmpty(_cachedDeviceId))
             return _cachedDeviceId;
 
-        // Блокируем для потокобезопасности
+        // Lock for thread safety
         _lock.Wait(_cts.Token);
         try
         {
-            // Double-check после блокировки
+            // Double-check after acquiring lock
             if (!string.IsNullOrEmpty(_cachedDeviceId))
                 return _cachedDeviceId;
 
-            // Проверяем сохраненный ID (зашифрованный в Preferences)
+            // Check saved ID (encrypted in Preferences)
             var savedIdEncrypted = Preferences.Get("persistent_device_id", string.Empty);
             if (!string.IsNullOrEmpty(savedIdEncrypted))
             {
@@ -54,10 +54,10 @@ public class DeviceIdService : IDisposable
                 }
             }
 
-            // Генерируем новый ID
+            // Generate new ID
             _cachedDeviceId = GenerateSecureDeviceId();
 
-            // Сохраняем в зашифрованном виде
+            // Save encrypted
             var encrypted = _encryption.Encrypt(_cachedDeviceId);
             Preferences.Set("persistent_device_id", encrypted);
 
@@ -69,7 +69,7 @@ public class DeviceIdService : IDisposable
         {
             _logger.LogError(ex, "DeviceIdService: Failed to get device ID");
 
-            // В случае ошибки генерируем временный ID
+            // On error, generate temporary ID
             return $"TEMP_{Guid.NewGuid():N}";
         }
         finally
@@ -121,14 +121,14 @@ public class DeviceIdService : IDisposable
 
     #endregion
 
-    #region Приватные методы
+    #region Private Methods
 
     private string GenerateSecureDeviceId()
     {
         try
         {
 #if ANDROID
-            // Пытаемся получить Android ID
+            // Try to get Android ID
             var androidId = GetAndroidId();
             if (!string.IsNullOrEmpty(androidId))
             {
@@ -136,14 +136,14 @@ public class DeviceIdService : IDisposable
             }
 #endif
 
-            // Генерируем криптостойкий ID
+            // Generate cryptographically secure ID
             return GenerateCryptoDeviceId();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to generate secure device ID, falling back to GUID");
 
-            // Fallback на GUID
+            // Fallback to GUID
             return $"FALLBACK_{Guid.NewGuid():N}";
         }
     }
@@ -158,7 +158,7 @@ public class DeviceIdService : IDisposable
                 context.ContentResolver,
                 Android.Provider.Settings.Secure.AndroidId);
 
-            // Проверяем на валидность (не эмуляторный ID)
+            // Check validity (not emulator ID)
             if (!string.IsNullOrEmpty(androidId) && androidId != "9774d56d682e549c")
             {
                 return androidId;
@@ -177,7 +177,7 @@ public class DeviceIdService : IDisposable
     {
         var deviceInfo = Microsoft.Maui.Devices.DeviceInfo.Current;
 
-        // Собираем уникальные данные устройства
+        // Collect unique device data
         var components = new List<string>
         {
             deviceInfo.Idiom.ToString(),
@@ -187,15 +187,15 @@ public class DeviceIdService : IDisposable
             deviceInfo.VersionString
         };
 
-        // Добавляем timestamp для уникальности
+        // Add timestamp for uniqueness
         components.Add(DateTimeOffset.UtcNow.Ticks.ToString());
 
-        // Создаем хеш из компонентов
+        // Create hash from components
         using var sha256 = SHA256.Create();
         var input = string.Join("|", components);
         var hash = sha256.ComputeHash(Encoding.UTF8.GetBytes(input));
 
-        // Берем первые 16 байт и конвертируем в Base64 (URL-safe)
+        // Take first 16 bytes and convert to Base64 (URL-safe)
         var deviceId = Convert.ToBase64String(hash, 0, 16)
             .Replace("/", "_")
             .Replace("+", "-")
@@ -232,7 +232,7 @@ public class DeviceIdService : IDisposable
 
     #endregion
 
-    #region Вспомогательные классы
+    #region Helper Classes
 
     public class DeviceInfo
     {

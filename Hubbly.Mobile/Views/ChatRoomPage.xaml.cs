@@ -53,10 +53,10 @@ public partial class ChatRoomPage : ContentPage, IDisposable
                 return;
             }
 
-            // Подписываемся на события WebView
+            // Subscribe to WebView events
             AvatarWebView.Navigated += OnWebViewNavigated;
 
-            // Инициализируем сервис WebView
+            // Initialize WebView service
             _webViewService.Initialize(AvatarWebView);
             _webViewService.OnSceneReady += OnSceneReady;
             _webViewService.OnSceneError += OnSceneError;
@@ -86,7 +86,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
             
             await _viewModel.OnAppearing();
 
-            // Проверяем доступность сервера
+            // Check server availability
             var isAvailable = await _authService.CheckServerHealthAsync();
 
             if (!isAvailable)
@@ -116,13 +116,13 @@ public partial class ChatRoomPage : ContentPage, IDisposable
 
         try
         {
-            // Отменяем все операции
+            // Cancel all operations
             _cts.Cancel();
 
-            // Отписываемся от событий WebView
+            // Unsubscribe from WebView events
             UnsubscribeWebViewEvents();
 
-            // Отключаемся от чата
+            // Disconnect from chat
             if (_viewModel.IsConnected)
             {
                 await _viewModel.DisconnectFromChatCommand.ExecuteAsync(null);
@@ -193,7 +193,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
                     LoadingOverlay.IsVisible = false;
                 }
 
-                // Отключаем 3D при ошибке
+                // Disable 3D on error
                 _viewModel.Disable3D();
 
                 DisplayAlert("3D Error", "Failed to initialize 3D scene, using simple avatars", "OK");
@@ -279,11 +279,11 @@ public partial class ChatRoomPage : ContentPage, IDisposable
 
         _logger.LogInformation("ChatRoomPage disposing...");
 
-        // Отменяем все операции
+        // Cancel all operations
         _cts.Cancel();
         _cts.Dispose();
 
-        // Отписываемся от событий
+        // Unsubscribe from events
         UnsubscribeWebViewEvents();
 
         _disposed = true;

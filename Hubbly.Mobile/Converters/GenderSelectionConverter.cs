@@ -9,8 +9,8 @@ public class GenderSelectionConverter : IValueConverter
         if (value is bool isSelected)
         {
             return isSelected ?
-                Color.FromArgb("#4F46E5") :  // Selected - фиолетовый
-                Color.FromArgb("#FFFFFF");   // Not selected - белый
+                Color.FromArgb("#4F46E5") :  // Selected - purple
+                Color.FromArgb("#FFFFFF");   // Not selected - white
         }
         return Color.FromArgb("#FFFFFF");
     }

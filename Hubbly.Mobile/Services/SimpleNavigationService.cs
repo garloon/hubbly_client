@@ -18,7 +18,7 @@ public class SimpleNavigationService : INavigationService, IDisposable
         _logger = logger;
     }
 
-    #region Публичные методы
+    #region Public Methods
 
     public async Task NavigateToAsync(string route)
     {
@@ -64,7 +64,7 @@ public class SimpleNavigationService : INavigationService, IDisposable
                         _ => throw new ArgumentException($"Unknown route: {route}")
                     };
 
-                    // Передаем параметры если есть
+                    // Pass parameters if any
                     if (parameters != null && page.BindingContext is IQueryAttributable attributable)
                     {
                         attributable.ApplyQueryAttributes(parameters);
@@ -192,7 +192,7 @@ public class SimpleNavigationService : INavigationService, IDisposable
 
     #endregion
 
-    #region Приватные методы
+    #region Private Methods
 
     private void ThrowIfDisposed()
     {

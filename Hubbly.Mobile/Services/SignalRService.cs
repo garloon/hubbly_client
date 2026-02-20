@@ -12,11 +12,11 @@ public class SignalRService : IDisposable
     private readonly AuthService _authService;
     private readonly ILogger<SignalRService> _logger;
 
-    // Синхронизация
+    // Synchronization
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
     private readonly SemaphoreSlim _reconnectLock = new(1, 1);
 
-    // Соединение
+    // Connection
     private HubConnection _hubConnection;
     private readonly List<IDisposable> _subscriptions = new();
     private readonly CancellationTokenSource _cts = new();
@@ -24,12 +24,12 @@ public class SignalRService : IDisposable
     
     private Func<Exception?, Task> _connectionClosedHandler;
 
-    // Состояние
+    // State
     private bool _isConnecting = false;
     private bool _isConnected = false;
     private DateTime _lastConnectionAttempt = DateTime.MinValue;
 
-    // Реконнект
+    // Reconnect
     private int _reconnectAttempts = 0;
     private const int MaxReconnectAttempts = 5;
     private const int ReconnectBaseDelayMs = 2000;
@@ -40,11 +40,11 @@ public class SignalRService : IDisposable
     private readonly TimeSpan _heartbeatTimeout = TimeSpan.FromSeconds(10);
     private string _currentUserId;
 
-    // Очередь сообщений для offline режима
+    // Message queue for offline mode
     private readonly ConcurrentQueue<QueuedMessage> _messageQueue = new();
     private readonly Timer _queueProcessorTimer;
 
-    // События
+    // Events
     public event EventHandler<ChatMessage> OnMessageReceived;
     public event EventHandler<IEnumerable<UserJoinedData>> OnInitialPresenceData;
     public event EventHandler<IEnumerable<UserJoinedData>> OnInitialPresenceReceived;
@@ -57,7 +57,7 @@ public class SignalRService : IDisposable
     public event EventHandler<ConnectionStateChangedEventArgs> OnConnectionStateChanged;
     public event EventHandler<string> OnDebugMessage;
 
-    // Свойства
+    // Properties
     public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected && _isConnected;
     public HubConnectionState ConnectionState => _hubConnection?.State ?? HubConnectionState.Disconnected;
 
@@ -67,29 +67,29 @@ public class SignalRService : IDisposable
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _logger = logger;
 
-        // Читаем server URL из Preferences
+        // Read server URL from Preferences
         var serverUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
         _hubUrl = $"{serverUrl.TrimEnd('/')}/chatHub";
         
         _logger.LogInformation("🚀 SignalRService created with URL: {Url}", _hubUrl);
 
-        // Таймер для обработки очереди сообщений
+        // Timer for processing message queue
         _queueProcessorTimer = new Timer(ProcessMessageQueue, null,
             TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
 
-        // Получаем текущего пользователя
+        // Get current user
         Task.Run(async () =>
         {
             _currentUserId = await _tokenManager.GetAsync("user_id");
         });
     }
 
-    #region Публичные методы
+    #region Public Methods
 
     public async Task StartConnection()
     {
         _logger.LogInformation("📞 StartConnection called. Current state: {State}", _hubConnection?.State);
-        // Защита от слишком частых попыток
+        // Protection against too frequent attempts
         if ((DateTime.Now - _lastConnectionAttempt).TotalSeconds < 2)
         {
             _logger.LogWarning("SignalR: Too frequent connection attempts, throttling");
@@ -147,19 +147,19 @@ public class SignalRService : IDisposable
                 State = HubConnectionState.Connecting
             });
 
-            // Dispose старого соединения если есть
+            // Dispose old connection if exists
             await DisposeOldConnectionAsync();
 
-            // Создаем новое соединение
+            // Create new connection
             _hubConnection = await CreateConnectionAsync();
 
-            // Запускаем
+            // Start
             await _hubConnection.StartAsync(_cts.Token);
 
             _isConnected = true;
             _reconnectAttempts = 0;
 
-            // Запускаем heartbeat
+            // Start heartbeat
             StartHeartbeat();
 
             _logger.LogInformation($"SignalR: Connected successfully. State: {_hubConnection.State}");
@@ -168,7 +168,7 @@ public class SignalRService : IDisposable
                 State = _hubConnection.State
             });
 
-            // Отправляем накопленные сообщения
+            // Send queued messages
             _ = Task.Run(() => ProcessMessageQueue(null));
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
@@ -218,7 +218,7 @@ public class SignalRService : IDisposable
         {
             _logger.LogInformation("SignalR: Stopping connection...");
 
-            // Останавливаем heartbeat
+            // Stop heartbeat
             StopHeartbeat();
 
             if (_hubConnection != null)
@@ -235,10 +235,10 @@ public class SignalRService : IDisposable
             _isConnected = false;
             _reconnectAttempts = 0;
 
-            // Очищаем подписки
+            // Clear subscriptions
             UnsubscribeAll();
 
-            // Очищаем очередь (но не теряем сообщения, просто отложим)
+            // Clear queue (but don't lose messages, just defer)
             _logger.LogInformation($"SignalR: Connection stopped, {_messageQueue.Count} messages queued");
 
             OnConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs
@@ -297,7 +297,7 @@ public class SignalRService : IDisposable
                 ActionType = null
             });
 
-            // Пробуем подключиться
+            // Try to connect
             _ = Task.Run(async () =>
             {
                 await Task.Delay(500);
@@ -360,19 +360,19 @@ public class SignalRService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "SignalR Typing Indicator Error");
-            // Не показываем ошибку пользователю - это не критично
+            // Don't show error to user - not critical
         }
     }
 
     #endregion
 
-    #region Приватные методы
+    #region Private Methods
 
     private async Task<HubConnection> CreateConnectionAsync()
     {
         _logger.LogInformation("🔧 Creating new HubConnection");
 
-        // Получаем валидный токен
+        // Get valid token
         var accessToken = await _tokenManager.GetValidTokenAsync(_authService);
         if (string.IsNullOrEmpty(accessToken))
         {
@@ -409,11 +409,11 @@ public class SignalRService : IDisposable
             })
             .Build();
 
-        // Подписываемся на событие Closed и сохраняем делегат
+        // Subscribe to Closed event and save delegate
         _connectionClosedHandler = OnConnectionClosed;
         connection.Closed += _connectionClosedHandler;
 
-        // Подписываемся на сообщения
+        // Subscribe to messages
         _subscriptions.Add(connection.On<ChatMessageDto>("ReceiveMessage", OnReceiveMessage));
         _subscriptions.Add(connection.On<UserJoinedData>("UserJoined", OnUserJoinedHandler));
         _subscriptions.Add(connection.On<IEnumerable<UserJoinedData>>("ReceiveInitialPresence", OnInitialPresenceHandler));
@@ -432,14 +432,14 @@ public class SignalRService : IDisposable
         {
             try
             {
-                // Отписываемся от события Closed
+                // Unsubscribe from Closed event
                 if (_connectionClosedHandler != null)
                 {
                     _hubConnection.Closed -= _connectionClosedHandler;
                     _connectionClosedHandler = null;
                 }
 
-                // Remove-методы есть, но они не обязательны, т.к. соединение будет уничтожено
+                // Remove methods exist but are not required as connection will be destroyed
                 _hubConnection.Remove("ReceiveMessage");
                 _hubConnection.Remove("UserJoined");
                 _hubConnection.Remove("ReceiveInitialPresence");
@@ -470,7 +470,7 @@ public class SignalRService : IDisposable
 
     private void UnsubscribeAll()
     {
-        // Отписываемся от сообщений (IDisposable)
+        // Unsubscribe from messages (IDisposable)
         foreach (var subscription in _subscriptions)
         {
             try
@@ -484,7 +484,7 @@ public class SignalRService : IDisposable
         }
         _subscriptions.Clear();
 
-        // Отписываемся от события Closed
+        // Unsubscribe from Closed event
         if (_hubConnection != null && _connectionClosedHandler != null)
         {
             try
@@ -511,7 +511,7 @@ public class SignalRService : IDisposable
             Error = error?.Message
         });
 
-        // Если 401 - пробуем обновить токен
+        // If 401 - try to refresh token
         if (error?.Message?.Contains("401") == true ||
             error?.Message?.Contains("Unauthorized") == true)
         {
@@ -529,7 +529,7 @@ public class SignalRService : IDisposable
         }
         else
         {
-            // Обычная ошибка - пробуем переподключиться
+            // Regular error - try to reconnect
             await TryReconnectWithBackoff();
         }
     }
@@ -559,7 +559,7 @@ public class SignalRService : IDisposable
 
             // Exponential backoff: 2^attempt * base delay
             var delayMs = Math.Pow(2, _reconnectAttempts) * ReconnectBaseDelayMs;
-            delayMs = Math.Min(delayMs, 30000); // Максимум 30 секунд
+            delayMs = Math.Min(delayMs, 30000); // Maximum 30 seconds
 
             _logger.LogInformation($"SignalR: Reconnect attempt {_reconnectAttempts}/{MaxReconnectAttempts} in {delayMs}ms");
 
@@ -578,7 +578,7 @@ public class SignalRService : IDisposable
         {
             _logger.LogError(ex, $"SignalR: Reconnect attempt {_reconnectAttempts} failed");
 
-            // Пробуем снова через Exponential backoff
+            // Try again with exponential backoff
             _ = Task.Delay(1000).ContinueWith(async _ =>
             {
                 await TryReconnectWithBackoff();
@@ -592,7 +592,7 @@ public class SignalRService : IDisposable
     
     #endregion
 
-    #region Обработчики событий SignalR
+    #region SignalR Event Handlers
 
     private void OnReceiveMessage(ChatMessageDto message)
     {
@@ -841,7 +841,7 @@ public class SignalRService : IDisposable
         {
             _logger.LogWarning(ex, "SignalR: Heartbeat failed");
 
-            // Если heartbeat упал - пробуем переподключиться
+            // If heartbeat failed - try to reconnect
             if (_isConnected)
             {
                 _isConnected = false;
@@ -852,7 +852,7 @@ public class SignalRService : IDisposable
 
     #endregion
 
-    #region Очередь сообщений
+    #region Message queue
 
     private async void ProcessMessageQueue(object state)
     {
@@ -863,7 +863,7 @@ public class SignalRService : IDisposable
         {
             try
             {
-                // Проверяем, не устарело ли сообщение
+                // Check if message is stale
                 var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
                 if (now - queuedMessage.Timestamp > 60)
                 {
@@ -879,13 +879,13 @@ public class SignalRService : IDisposable
                     _cts.Token);
 
                 _logger.LogInformation("✅ Queued message sent");
-                await Task.Delay(100); // Небольшая пауза между сообщениями
+                await Task.Delay(100); // Small pause between messages
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to send queued message, re-queueing");
                 _messageQueue.Enqueue(queuedMessage);
-                break; // Выходим, если не получилось отправить
+                break; // Exit if failed to send
             }
         }
     }
@@ -902,22 +902,22 @@ public class SignalRService : IDisposable
 
         _logger.LogInformation("SignalRService: Disposing...");
 
-        // Отменяем все операции
+        // Cancel all operations
         _cts.Cancel();
 
-        // Останавливаем таймеры
+        // Stop timers
         StopHeartbeat();
         _queueProcessorTimer?.Dispose();
 
-        // Отписываемся от всего
+        // Unsubscribe from everything
         UnsubscribeAll();
 
-        // Закрываем соединение
+        // Close connection
         if (_hubConnection != null)
         {
             try
             {
-                // Отписываемся от события Closed еще раз для надежности
+                // Unsubscribe from Closed event again for reliability
                 if (_connectionClosedHandler != null)
                 {
                     _hubConnection.Closed -= _connectionClosedHandler;
@@ -937,7 +937,7 @@ public class SignalRService : IDisposable
             _hubConnection = null;
         }
 
-        // Освобождаем семафоры
+        // Dispose semaphores
         _connectionLock?.Dispose();
         _reconnectLock?.Dispose();
         _cts?.Dispose();
@@ -948,7 +948,7 @@ public class SignalRService : IDisposable
 
     #endregion
 
-    #region Вспомогательные классы
+    #region Helper Classes
 
     private class ChatMessageDto
     {

@@ -44,7 +44,7 @@ public partial class WelcomeViewModel : ObservableObject, IDisposable
         _logger.LogInformation("WelcomeViewModel created");
     }
 
-    #region Команды
+    #region Commands
 
     [RelayCommand]
     private async Task EnterAsGuest()
@@ -71,7 +71,7 @@ public partial class WelcomeViewModel : ObservableObject, IDisposable
 
             _logger.LogInformation("EnterAsGuest started");
 
-            // Проверяем сервер с таймаутом
+            // Check server with timeout
             var isServerHealthy = await _authService.WaitForServerAsync(5, _cts.Token);
 
             if (!isServerHealthy)
@@ -84,24 +84,24 @@ public partial class WelcomeViewModel : ObservableObject, IDisposable
 
             StatusMessage = "Checking existing session...";
 
-            // Получаем device ID
+            // Get device ID
             var deviceId = _deviceIdService.GetPersistentDeviceId();
             _logger.LogDebug("Device ID: {DeviceId}", deviceId);
 
-            // Проверяем, есть ли валидный токен
+            // Check if valid token exists
             StatusMessage = "Restoring session...";
             var tokenValid = await _tokenManager.GetValidTokenAsync(_authService);
 
             if (!string.IsNullOrEmpty(tokenValid))
             {
-                // Есть валидная сессия - идем сразу в чат
+                // Valid session exists - go directly to chat
                 _logger.LogInformation("Valid token found, navigating to chat");
                 StatusMessage = "Restoring your session...";
                 await _navigationService.NavigateToAsync("//ChatRoomPage");
             }
             else
             {
-                // Нет сессии - идем создавать аватар
+                // No session - go to create avatar
                 _logger.LogInformation("No valid token, navigating to avatar selection");
                 StatusMessage = "Creating new avatar...";
                 await _navigationService.NavigateToAsync("//AvatarSelectionPage");
@@ -143,7 +143,7 @@ public partial class WelcomeViewModel : ObservableObject, IDisposable
 
     #endregion
 
-    #region Жизненный цикл
+    #region Lifecycle
 
     public void OnAppearing()
     {

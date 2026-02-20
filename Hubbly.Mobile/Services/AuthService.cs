@@ -26,11 +26,11 @@ public class AuthService : IDisposable
         // Get server URL from Preferences (consistent with SignalRService)
         _apiBaseUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
 
-        // Настраиваем HttpClient
+        // Configure HttpClient
         _httpClient = ConfigureHttpClient(httpClient);
     }
 
-    #region Публичные методы
+    #region Public Methods
 
     public async Task<AuthResponse> AuthenticateGuestWithAvatarAsync(string avatarConfigJson)
     {
@@ -65,7 +65,7 @@ public class AuthService : IDisposable
                 "application/json");
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
-            cts.CancelAfter(TimeSpan.FromSeconds(15)); // Таймаут 15 секунд
+            cts.CancelAfter(TimeSpan.FromSeconds(15)); // 15 second timeout
 
             var response = await _httpClient.PostAsync("api/auth/guest", content, cts.Token);
 
@@ -92,15 +92,15 @@ public class AuthService : IDisposable
                 throw new Exception("Failed to deserialize auth response");
             }
 
-            // Сохраняем никнейм (зашифрованный)
+            // Save nickname (encrypted)
             if (!string.IsNullOrEmpty(authResponse?.User?.Nickname))
             {
-                // Используем TokenManager для шифрования
+                // Use TokenManager for encryption
                 await _tokenManager.SetEncryptedAsync("nickname", authResponse.User.Nickname);
                 _logger.LogInformation("✅ Saved nickname from server (encrypted): {Nickname}", authResponse.User.Nickname);
             }
 
-            // Сохраняем ID пользователя (зашифрованный)
+            // Save user ID (encrypted)
             if (authResponse?.User?.Id != Guid.Empty)
             {
                 await _tokenManager.SetEncryptedAsync("user_id", authResponse.User.Id.ToString());
@@ -289,11 +289,11 @@ public class AuthService : IDisposable
 
     #endregion
 
-    #region Приватные методы
+    #region Private Methods
 
     private HttpClient ConfigureHttpClient(HttpClient httpClient)
     {
-        // Для Android нужен специальный handler из-за сертификатов
+        // For Android, a special handler is needed due to certificates
         if (DeviceInfo.Platform == DevicePlatform.Android)
         {
             var handler = new HttpClientHandler
@@ -306,7 +306,7 @@ public class AuthService : IDisposable
         httpClient.DefaultRequestHeaders.Accept.Add(new("application/json"));
         httpClient.BaseAddress = new Uri(_apiBaseUrl);
 
-        // Добавляем User-Agent
+        // Add User-Agent
         httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
             $"HubblyMobile/{AppInfo.Current.VersionString} ({DeviceInfo.Current.Platform}; {DeviceInfo.Current.VersionString})");
 

@@ -28,22 +28,22 @@ public static class MauiProgram
                 fonts.AddFont("OpenSans-Semibold.ttf", "OpenSansSemibold");
             });
 
-        // Настройка платформозависимых обработчиков
+        // Configure platform-specific handlers
         ConfigurePlatformHandlers(builder);
 
-        // Настройка логирования в файл
+        // Configure file logging
         ConfigureFileLogging(builder);
         
-        // Регистрация сервисов
+        // Register services
         RegisterServices(builder.Services);
 
-        // Регистрация ViewModels
+        // Register ViewModels
         RegisterViewModels(builder.Services);
 
-        // Регистрация страниц
+        // Register pages
         RegisterPages(builder.Services);
 
-        // Настройка логирования
+        // Configure logging
         ConfigureLogging(builder);
 
         // OpenTelemetry Configuration (consistent with backend)
@@ -66,13 +66,13 @@ public static class MauiProgram
         var app = builder.Build();
         ServiceProvider = app.Services;
 
-        // Инициализация сервисов при старте
+        // Initialize services on startup
         InitializeServices(ServiceProvider);
 
         return app;
     }
 
-    #region Конфигурация платформы
+    #region Platform configuration
 
     private static void ConfigurePlatformHandlers(MauiAppBuilder builder)
     {
@@ -86,11 +86,11 @@ public static class MauiProgram
 
     #endregion
 
-    #region Регистрация сервисов
+    #region Service registration
 
     private static void RegisterServices(IServiceCollection services)
     {
-        // Инфраструктурные сервисы (Singleton)
+        // Infrastructure services (Singleton)
         services.AddSingleton<DeviceIdService>();
         services.AddSingleton<EncryptionService>(sp =>
         {
@@ -106,18 +106,18 @@ public static class MauiProgram
 
         services.AddSingleton<ILogViewerService, LogViewerService>();
 
-        // HTTP клиент (Singleton)
+        // HTTP client (Singleton)
         services.AddSingleton<HttpClient>(sp =>
         {
             var deviceIdService = sp.GetRequiredService<DeviceIdService>();
             var handler = new HttpClientHandler();
 
-            // ВАЖНО: Не отключаем проверку сертификатов!
-            // Для разработки с самоподписанными сертификатами используйте доверенные сертификаты
+            // IMPORTANT: Do not disable certificate validation!
+            // For development with self-signed certificates, use trusted certificates
 
             var client = new HttpClient(handler);
             
-            // Читаем server URL из Preferences (может быть изменен в настройках)
+            // Read server URL from Preferences (can be changed in settings)
             var serverUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
             client.BaseAddress = new Uri(serverUrl);
             
@@ -128,11 +128,11 @@ public static class MauiProgram
             return client;
         });
 
-        // Бизнес-сервисы (Singleton)
+        // Business services (Singleton)
         services.AddSingleton<AuthService>();
-        services.AddSingleton<SignalRService>(); // Зависит от TokenManager и AuthService
+        services.AddSingleton<SignalRService>(); // Depends on TokenManager and AuthService
 
-        // Фоновые сервисы (Hosted)
+        // Background services (Hosted)
         services.AddHostedService<ConnectionMonitorService>();
     }
 
@@ -152,7 +152,7 @@ public static class MauiProgram
     
     #endregion
 
-    #region Настройка логирования
+    #region Logging configuration
 
     private static void ConfigureLogging(MauiAppBuilder builder)
     {
@@ -163,7 +163,7 @@ public static class MauiProgram
         builder.Logging.SetMinimumLevel(LogLevel.Information);
 #endif
 
-        // Добавляем фильтры для уменьшения шума
+        // Add filters to reduce noise
         builder.Logging.AddFilter("Microsoft", LogLevel.Warning);
         builder.Logging.AddFilter("System", LogLevel.Warning);
         builder.Logging.AddFilter("Microsoft.AspNetCore.SignalR", LogLevel.Information);
@@ -171,36 +171,36 @@ public static class MauiProgram
 
     #endregion
 
-    #region Конфигурация логирования в файл
+    #region File logging configuration
 
     private static void ConfigureFileLogging(MauiAppBuilder builder)
     {
 #if DEBUG
         try
         {
-            // Определяем путь для логов на Android
+            // Determine log path for Android
             string logPath;
 
             if (DeviceInfo.Platform == DevicePlatform.Android)
             {
-                // Папка Downloads на Android
+                // Downloads folder on Android
                 var downloads = Android.OS.Environment.GetExternalStoragePublicDirectory(
                     Android.OS.Environment.DirectoryDownloads).AbsolutePath;
                 logPath = Path.Combine(downloads, "hubbly_debug.log");
 
-                // Создаем папку если нет
+                // Create folder if it doesn't exist
                 Directory.CreateDirectory(Path.GetDirectoryName(logPath));
 
-                // Пишем в консоль для отладки
-                Console.WriteLine($"📁 Логи будут сохраняться в: {logPath}");
+                // Write to console for debugging
+                Console.WriteLine($"📁 Logs will be saved to: {logPath}");
             }
             else
             {
-                // Для других платформ - в CacheDirectory
+                // For other platforms - in CacheDirectory
                 logPath = Path.Combine(FileSystem.CacheDirectory, "hubbly_debug.log");
             }
 
-            // Настраиваем Serilog
+            // Configure Serilog
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Debug()
                 .WriteTo.File(
@@ -209,10 +209,10 @@ public static class MauiProgram
                     fileSizeLimitBytes: 10485760)
                 .CreateLogger();
 
-            // Добавляем Serilog как провайдер логов
+            // Add Serilog as log provider
             builder.Logging.AddSerilog(Log.Logger, dispose: true);
 
-            // Добавляем тестовую запись при старте
+            // Add test entry on startup
             Log.Information("=== HUBBLY APP STARTED ===");
             Log.Information("Device: {Device} {Platform}",
                 DeviceInfo.Current.Model,
@@ -228,13 +228,13 @@ public static class MauiProgram
 
     #endregion
 
-    #region Инициализация при старте
+    #region Startup Initialization
 
     private static void InitializeServices(IServiceProvider serviceProvider)
     {
         try
         {
-            // Получаем сервисы для прогрева
+            // Get services for warming up
             _ = serviceProvider.GetRequiredService<DeviceIdService>();
             _ = serviceProvider.GetRequiredService<TokenManager>();
             _ = serviceProvider.GetRequiredService<AuthService>();

@@ -38,7 +38,7 @@ public class LogViewerService : ILogViewerService
                 _logger.LogDebug("Looking for log: {Path}", logPath);
                 _logger.LogDebug("File exists: {Exists}", File.Exists(logPath));
 
-                // Если сегодняшнего нет, берем последний
+                // If today's log doesn't exist, take the latest one
                 if (!File.Exists(logPath))
                 {
                     var files = Directory.GetFiles(downloads, "hubbly_debug_*.log");
@@ -68,12 +68,12 @@ public class LogViewerService : ILogViewerService
             {
                 return await File.ReadAllTextAsync(logPath);
             }
-            return "Логов не найдено";
+            return "No logs found";
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to read logs");
-            return $"Ошибка чтения логов: {ex.Message}";
+            return $"Error reading logs: {ex.Message}";
         }
     }
 
@@ -86,14 +86,14 @@ public class LogViewerService : ILogViewerService
             if (string.IsNullOrEmpty(logPath))
             {
                 _logger.LogError("Log path is empty");
-                await Shell.Current.DisplayAlert("Ошибка", "Путь к логам не найден", "OK");
+                await Shell.Current.DisplayAlert("Error", "Log path not found", "OK");
                 return;
             }
 
             if (!File.Exists(logPath))
             {
                 _logger.LogError("Log file not found: {Path}", logPath);
-                await Shell.Current.DisplayAlert("Ошибка", "Файл логов не найден", "OK");
+                await Shell.Current.DisplayAlert("Error", "Log file not found", "OK");
                 return;
             }
 
@@ -101,14 +101,14 @@ public class LogViewerService : ILogViewerService
 
             await Share.Default.RequestAsync(new ShareFileRequest
             {
-                Title = "Поделиться логами Hubbly",
+                Title = "Share Hubbly logs",
                 File = new ShareFile(logPath)
             });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to share logs");
-            await Shell.Current.DisplayAlert("Ошибка", $"Не удалось поделиться логами: {ex.Message}", "OK");
+            await Shell.Current.DisplayAlert("Error", $"Failed to share logs: {ex.Message}", "OK");
         }
     }
 

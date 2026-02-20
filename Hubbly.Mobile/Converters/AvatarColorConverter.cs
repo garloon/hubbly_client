@@ -16,11 +16,11 @@ public class AvatarColorConverter : IValueConverter
 
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        // Текущий пользователь - фиолетовый
+        // Current user - purple
         if (value is bool isCurrentUser && isCurrentUser)
             return Color.FromArgb("#4F46E5");
 
-        // По никнейму - стабильный цвет
+        // By nickname - stable color
         if (value is string nickname && !string.IsNullOrEmpty(nickname))
         {
             return _userColorCache.GetOrAdd(nickname, key =>
