@@ -13,6 +13,7 @@ public class AuthService : IDisposable
     private readonly ILogger<AuthService> _logger;
     private readonly SemaphoreSlim _authLock = new(1, 1);
     private readonly CancellationTokenSource _cts = new();
+    private readonly string _apiBaseUrl;
 
     private bool _disposed;
 
@@ -21,6 +22,9 @@ public class AuthService : IDisposable
         _deviceIdService = deviceIdService ?? throw new ArgumentNullException(nameof(deviceIdService));
         _tokenManager = tokenManager ?? throw new ArgumentNullException(nameof(tokenManager));
         _logger = logger;
+
+        // Get server URL from Preferences (consistent with SignalRService)
+        _apiBaseUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
 
         // Настраиваем HttpClient
         _httpClient = ConfigureHttpClient(httpClient);

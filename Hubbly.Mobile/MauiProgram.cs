@@ -4,6 +4,9 @@ using Hubbly.Mobile.Services;
 using Hubbly.Mobile.ViewModels;
 using Hubbly.Mobile.Views;
 using Microsoft.Extensions.Logging;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 using Serilog;
 
 namespace Hubbly.Mobile;
@@ -42,6 +45,23 @@ public static class MauiProgram
 
         // Настройка логирования
         ConfigureLogging(builder);
+
+        // OpenTelemetry Configuration (consistent with backend)
+        builder.Services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource
+                .AddService(serviceName: "Hubbly.Mobile", serviceVersion: "1.0.0"))
+            .WithTracing(tracing =>
+            {
+                tracing
+                    .AddHttpClientInstrumentation()
+                    .AddConsoleExporter();
+            })
+            .WithMetrics(metrics =>
+            {
+                metrics
+                    .AddHttpClientInstrumentation()
+                    .AddConsoleExporter();
+            });
 
         var app = builder.Build();
         ServiceProvider = app.Services;

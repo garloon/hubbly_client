@@ -20,6 +20,7 @@ public class SignalRService : IDisposable
     private HubConnection _hubConnection;
     private readonly List<IDisposable> _subscriptions = new();
     private readonly CancellationTokenSource _cts = new();
+    private string _hubUrl;
     
     private Func<Exception?, Task> _connectionClosedHandler;
 

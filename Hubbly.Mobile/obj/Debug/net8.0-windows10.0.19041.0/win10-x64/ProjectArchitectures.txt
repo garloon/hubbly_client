@@ -1,1 +1,0 @@
-D:\VSProjects\Hubbly.Client\Hubbly.Mobile\Hubbly.Mobile.csproj;x64
