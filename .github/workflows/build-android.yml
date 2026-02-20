@@ -1,0 +1,105 @@
+name: Build and Release Android APK
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Needed to create releases
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Setup Java JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Accept Android SDK licenses
+      run: |
+        yes | sdkmanager --licenses || true
+        sdkmanager "platforms;android-34" "build-tools;34.0.0"
+
+    - name: Restore dependencies
+      run: dotnet restore Hubbly.Client.sln
+
+    - name: Build
+      run: dotnet build Hubbly.Client.sln --configuration Release --no-restore
+
+    - name: Publish Android APK
+      run: |
+        dotnet publish Hubbly.Mobile/Hubbly.Mobile.csproj \
+          --configuration Release \
+          --framework net8.0-android \
+          --output ./publish/android \
+          --no-build \
+          /p:AndroidPackageFormat=apk \
+          /p:AndroidSigningKeyStore= \
+          /p:AndroidSigningKeyAlias= \
+          /p:AndroidSigningKeyPass= \
+          /p:AndroidSigningStorePass=
+      
+        # Find the generated APK
+        find ./publish/android -name "*.apk" -type f
+
+    - name: Get version from csproj
+      id: version
+      run: |
+        VERSION=$(grep -oP '(?<=<ApplicationVersion>)[^<]+' Hubbly.Mobile/Hubbly.Mobile.csproj)
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        name: Release v${{ steps.version.outputs.version }}
+        body: |
+          ## Hubbly Mobile APK
+          
+          This is an automatically built release of Hubbly mobile application.
+          
+          **Version:** ${{ steps.version.outputs.version }}
+          **Built:** ${{ github.event.head_commit.timestamp }}
+          
+          ### Installation
+          1. Download the APK file
+          2. Enable "Unknown sources" in Android settings
+          3. Install the APK
+          
+          ### Notes
+          - This is a debug build (not signed for release)
+          - For testing purposes only
+        draft: false
+        prerelease: false
+        generate_release_notes: false
+        files: publish/android/*.apk
+
+    - name: Upload APK as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: hubbly-android-apk
+        path: publish/android/*.apk
+        retention-days: 30
+
+    - name: Output download URL
+      run: |
+        echo "✅ APK built and released!"
+        echo "📱 Download from: ${{ steps.create_release.outputs.html_url }}"
+        echo "📁 Or from Releases page: https://github.com/${{ github.repository }}/releases"
