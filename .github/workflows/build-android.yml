@@ -51,7 +51,6 @@ jobs:
           --configuration Release \
           --framework net9.0-android \
           --output ./publish/android \
-          --no-build \
           /p:AndroidPackageFormat=apk \
           /p:AndroidSigningKeyStore= \
           /p:AndroidSigningKeyAlias= \
