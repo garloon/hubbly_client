@@ -4,9 +4,6 @@ using Hubbly.Mobile.Services;
 using Hubbly.Mobile.ViewModels;
 using Hubbly.Mobile.Views;
 using Microsoft.Extensions.Logging;
-using OpenTelemetry.Metrics;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
 using Serilog;
 
 namespace Hubbly.Mobile;
@@ -46,28 +43,15 @@ public static class MauiProgram
         // Configure logging
         ConfigureLogging(builder);
 
-        // OpenTelemetry Configuration (consistent with backend)
-        builder.Services.AddOpenTelemetry()
-            .ConfigureResource(resource => resource
-                .AddService(serviceName: "Hubbly.Mobile", serviceVersion: "1.0.0"))
-            .WithTracing(tracing =>
-            {
-                tracing
-                    .AddHttpClientInstrumentation()
-                    .AddConsoleExporter();
-            })
-            .WithMetrics(metrics =>
-            {
-                metrics
-                    .AddHttpClientInstrumentation()
-                    .AddConsoleExporter();
-            });
+        // OpenTelemetry Configuration (disabled for Android - causes startup issues)
+        // TODO: Enable when properly configured for mobile
+        // builder.Services.AddOpenTelemetry()...
 
         var app = builder.Build();
         ServiceProvider = app.Services;
 
-        // Initialize services on startup
-        InitializeServices(ServiceProvider);
+        // Don't initialize services on startup - let them be lazy-loaded
+        // This prevents long blocking operations during app initialization
 
         return app;
     }
@@ -92,29 +76,15 @@ public static class MauiProgram
     {
         // Infrastructure services (Singleton)
         services.AddSingleton<DeviceIdService>();
-        services.AddSingleton<EncryptionService>(sp =>
-        {
-            var deviceIdService = sp.GetRequiredService<DeviceIdService>();
-            var logger = sp.GetRequiredService<ILogger<EncryptionService>>();
-            // Get device ID synchronously during startup
-            var deviceId = deviceIdService.GetPersistentDeviceId();
-            return new EncryptionService(logger, deviceId);
-        });
         services.AddSingleton<TokenManager>();
         services.AddSingleton<WebViewService>();
         services.AddSingleton<INavigationService, SimpleNavigationService>();
-
         services.AddSingleton<ILogViewerService, LogViewerService>();
 
         // HTTP client (Singleton)
         services.AddSingleton<HttpClient>(sp =>
         {
-            var deviceIdService = sp.GetRequiredService<DeviceIdService>();
             var handler = new HttpClientHandler();
-
-            // IMPORTANT: Do not disable certificate validation!
-            // For development with self-signed certificates, use trusted certificates
-
             var client = new HttpClient(handler);
             
             // Read server URL from Preferences (can be changed in settings)
@@ -228,24 +198,6 @@ public static class MauiProgram
 
     #endregion
 
-    #region Startup Initialization
-
-    private static void InitializeServices(IServiceProvider serviceProvider)
-    {
-        try
-        {
-            // Get services for warming up
-            _ = serviceProvider.GetRequiredService<DeviceIdService>();
-            _ = serviceProvider.GetRequiredService<TokenManager>();
-            _ = serviceProvider.GetRequiredService<AuthService>();
-            _ = serviceProvider.GetRequiredService<SignalRService>();
-            _ = serviceProvider.GetRequiredService<WebViewService>();
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error initializing services: {ex.Message}");
-        }
-    }
-
-    #endregion
+    // Services are initialized lazily when first accessed
+    // This prevents blocking the UI thread during app startup
 }

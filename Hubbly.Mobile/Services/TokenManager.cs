@@ -10,16 +10,14 @@ public class TokenManager : IDisposable
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private readonly SemaphoreSlim _storageLock = new(1, 1);
     private readonly CancellationTokenSource _cts = new();
-    private readonly EncryptionService _encryption;
 
     private bool _isRefreshing;
     private Task<string?> _currentRefreshTask;
     private bool _disposed;
 
-    public TokenManager(ILogger<TokenManager> logger, EncryptionService encryption)
+    public TokenManager(ILogger<TokenManager> logger)
     {
         _logger = logger;
-        _encryption = encryption ?? throw new ArgumentNullException(nameof(encryption));
 
         // Load tokens from storage on startup
         Task.Run(async () => await LoadTokensFromStorageAsync());
@@ -143,7 +141,13 @@ public class TokenManager : IDisposable
             // Clear Preferences
             try
             {
-                Preferences.Clear();
+                // Only remove our keys, not all preferences
+                var keys = new[] { "access_token", "refresh_token", "user_id", "persistent_device_id", "server_device_id", "nickname" };
+                foreach (var key in keys)
+                {
+                    Preferences.Remove(key);
+                    Preferences.Remove($"{key}_expires");
+                }
             }
             catch (Exception ex)
             {
@@ -192,7 +196,7 @@ public class TokenManager : IDisposable
 
     #endregion
 
-    #region Encrypted Storage for Sensitive Data (Not Just Tokens)
+    #region Simple Storage (No Encryption for Debug)
 
     public Task SetEncryptedAsync(string key, string value)
     {
@@ -204,11 +208,10 @@ public class TokenManager : IDisposable
         if (value == null)
             throw new ArgumentNullException(nameof(value));
 
-        _logger.LogDebug($"🔒 TokenManager.SetEncrypted: {key} = {value?.Substring(0, Math.Min(8, value?.Length ?? 0))}...");
+        _logger.LogDebug($"💾 TokenManager.Set: {key} = {value?.Substring(0, Math.Min(8, value?.Length ?? 0))}...");
 
-        // Encrypt and store in Preferences only (no SecureStorage duplicate for non-token data)
-        var encryptedValue = _encryption.Encrypt(value);
-        Preferences.Set(key, encryptedValue);
+        // Store directly in Preferences (no encryption for debug)
+        Preferences.Set(key, value);
 
         // Also cache in memory for quick access
         _tokenCache[key] = new TokenInfo { Value = value };
@@ -226,27 +229,26 @@ public class TokenManager : IDisposable
         // Check cache first
         if (_tokenCache.TryGetValue(key, out var cached))
         {
-            _logger.LogDebug($"🔓 TokenManager.GetEncrypted (cached): {key}");
+            _logger.LogDebug($"📖 TokenManager.Get (cached): {key}");
             return cached.Value;
         }
 
-        // Try to read from Preferences and decrypt
+        // Try to read from Preferences
         try
         {
-            var encryptedValue = Preferences.Get(key, string.Empty);
-            if (!string.IsNullOrEmpty(encryptedValue))
+            var value = Preferences.Get(key, string.Empty);
+            if (!string.IsNullOrEmpty(value))
             {
-                var decryptedValue = _encryption.Decrypt(encryptedValue);
-                _logger.LogDebug($"🔓 TokenManager.GetEncrypted (decrypted): {key}");
+                _logger.LogDebug($"📖 TokenManager.Get (from Preferences): {key}");
 
                 // Cache for future
-                _tokenCache[key] = new TokenInfo { Value = decryptedValue };
-                return decryptedValue;
+                _tokenCache[key] = new TokenInfo { Value = value };
+                return value;
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to decrypt {Key} from Preferences", key);
+            _logger.LogError(ex, "Failed to read {Key} from Preferences", key);
         }
 
         return null;
@@ -272,7 +274,7 @@ public class TokenManager : IDisposable
     {
         try
         {
-            // Try SecureStorage
+            // Try SecureStorage (OS encrypted)
             var value = await SecureStorage.GetAsync(key);
             var expiresStr = await SecureStorage.GetAsync($"{key}_expires");
 
@@ -297,7 +299,7 @@ public class TokenManager : IDisposable
             _logger.LogError(ex, "Failed to load {Key} from SecureStorage", key);
         }
 
-        // Fallback to Preferences (with decryption)
+        // Fallback to Preferences (simple storage)
         try
         {
             var prefValue = Preferences.Get(key, string.Empty);
@@ -305,9 +307,7 @@ public class TokenManager : IDisposable
 
             if (!string.IsNullOrEmpty(prefValue))
             {
-                // Decrypt value
-                var decryptedValue = _encryption.Decrypt(prefValue);
-                var tokenInfo = new TokenInfo { Value = decryptedValue };
+                var tokenInfo = new TokenInfo { Value = prefValue };
 
                 if (!string.IsNullOrEmpty(prefExpires) &&
                     DateTimeOffset.TryParse(prefExpires, out var expires))
@@ -358,7 +358,7 @@ public class TokenManager : IDisposable
 
         try
         {
-            // Save to SecureStorage (already encrypted by OS)
+            // Save to SecureStorage (OS-level encryption)
             await SecureStorage.SetAsync(key, tokenInfo.Value);
 
             if (tokenInfo.ExpiresAt.HasValue)
@@ -366,17 +366,15 @@ public class TokenManager : IDisposable
                 await SecureStorage.SetAsync($"{key}_expires", tokenInfo.ExpiresAt.Value.ToString("o"));
             }
 
-            // Duplicate in Preferences with additional encryption
-            var encryptedValue = _encryption.Encrypt(tokenInfo.Value);
-            Preferences.Set(key, encryptedValue);
+            // Also save to Preferences for easy access (no additional encryption)
+            Preferences.Set(key, tokenInfo.Value);
 
             if (tokenInfo.ExpiresAt.HasValue)
             {
-                // Expiration doesn't need encryption as it's not sensitive
                 Preferences.Set($"{key}_expires", tokenInfo.ExpiresAt.Value.ToString("o"));
             }
 
-            _logger.LogDebug("Saved {Key} to storage (encrypted in Preferences)", key);
+            _logger.LogDebug("Saved {Key} to storage", key);
         }
         catch (Exception ex)
         {

@@ -9,15 +9,13 @@ public class DeviceIdService : IDisposable
     private readonly ILogger<DeviceIdService> _logger;
     private readonly SemaphoreSlim _lock = new(1, 1);
     private readonly CancellationTokenSource _cts = new();
-    private readonly EncryptionService _encryption;
 
     private string _cachedDeviceId;
     private bool _disposed;
 
-    public DeviceIdService(ILogger<DeviceIdService> logger, EncryptionService encryption)
+    public DeviceIdService(ILogger<DeviceIdService> logger)
     {
         _logger = logger;
-        _encryption = encryption ?? throw new ArgumentNullException(nameof(encryption));
     }
 
     #region Public Methods
@@ -38,28 +36,20 @@ public class DeviceIdService : IDisposable
             if (!string.IsNullOrEmpty(_cachedDeviceId))
                 return _cachedDeviceId;
 
-            // Check saved ID (encrypted in Preferences)
-            var savedIdEncrypted = Preferences.Get("persistent_device_id", string.Empty);
-            if (!string.IsNullOrEmpty(savedIdEncrypted))
+            // Check saved ID (stored in Preferences without encryption for simplicity)
+            var savedId = Preferences.Get("persistent_device_id", string.Empty);
+            if (!string.IsNullOrEmpty(savedId))
             {
-                try
-                {
-                    _cachedDeviceId = _encryption.Decrypt(savedIdEncrypted);
-                    _logger.LogInformation("DeviceIdService: Using saved device ID: {DeviceId}", _cachedDeviceId);
-                    return _cachedDeviceId;
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "DeviceIdService: Failed to decrypt device ID, will generate new one");
-                }
+                _cachedDeviceId = savedId;
+                _logger.LogInformation("DeviceIdService: Using saved device ID: {DeviceId}", _cachedDeviceId);
+                return _cachedDeviceId;
             }
 
             // Generate new ID
             _cachedDeviceId = GenerateSecureDeviceId();
 
-            // Save encrypted
-            var encrypted = _encryption.Encrypt(_cachedDeviceId);
-            Preferences.Set("persistent_device_id", encrypted);
+            // Save directly (no encryption needed for device ID)
+            Preferences.Set("persistent_device_id", _cachedDeviceId);
 
             _logger.LogInformation("DeviceIdService: Generated new device ID: {DeviceId}", _cachedDeviceId);
 
