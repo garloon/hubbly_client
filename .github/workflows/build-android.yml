@@ -49,7 +49,7 @@ jobs:
       run: |
         dotnet publish Hubbly.Mobile/Hubbly.Mobile.csproj \
           --configuration Release \
-          --framework net8.0-android \
+          --framework net9.0-android \
           --output ./publish/android \
           --no-build \
           /p:AndroidPackageFormat=apk \
