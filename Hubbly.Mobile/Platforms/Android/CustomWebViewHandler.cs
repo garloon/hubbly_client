@@ -17,8 +17,6 @@ public class CustomWebViewHandler : WebViewHandler
         platformView.Settings.DatabaseEnabled = true;
         platformView.Settings.AllowFileAccess = true;
         platformView.Settings.AllowContentAccess = true;
-        platformView.Settings.SetAllowFileAccessFromFileURLs(true);
-        platformView.Settings.SetAllowUniversalAccessFromFileURLs(true);
         platformView.Settings.LoadWithOverviewMode = true;
         platformView.Settings.UseWideViewPort = true;
         platformView.Settings.MixedContentMode = MixedContentHandling.CompatibilityMode;

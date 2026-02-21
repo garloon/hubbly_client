@@ -1,4 +1,5 @@
-using Android.Webkit;
+using global::Android.Webkit;
+using global::Android.Views;
 using Microsoft.Extensions.Logging;
 using System;
 
@@ -7,7 +8,7 @@ namespace Hubbly.Mobile.Platforms.Android;
 /// <summary>
 /// WebChromeClient that captures JavaScript console messages and errors
 /// </summary>
-public class LoggingWebChromeClient : WebChromeClient
+public class LoggingWebChromeClient : global::Android.Webkit.WebChromeClient
 {
     private readonly ILogger? _logger;
 
@@ -34,36 +35,18 @@ public class LoggingWebChromeClient : WebChromeClient
     /// </summary>
     public override bool OnConsoleMessage(ConsoleMessage consoleMessage)
     {
-        var message = $"[JS {consoleMessage.MessageLevel()}] {consoleMessage.Message()} (Line {consoleMessage.LineNumber()}, Source: {consoleMessage.SourceId()})";
-        
-        switch (consoleMessage.MessageLevel())
-        {
-            case ConsoleMessage.MessageLevel.Error:
-                _logger.LogError("JS Console Error: {Message}", message);
-                break;
-            case ConsoleMessage.MessageLevel.Warning:
-                _logger.LogWarning("JS Console Warning: {Message}", message);
-                break;
-            case ConsoleMessage.MessageLevel.Log:
-                _logger.LogInformation("JS Console Log: {Message}", message);
-                break;
-            case ConsoleMessage.MessageLevel.Debug:
-                _logger.LogDebug("JS Console Debug: {Message}", message);
-                break;
-            default:
-                _logger.LogInformation("JS Console: {Message}", message);
-                break;
-        }
-        
+        // Simply log all console messages - level detection is complex due to API differences
+        var message = $"[JS] {consoleMessage.Message} (Line {consoleMessage.LineNumber}, Source: {consoleMessage.SourceId})";
+        _logger?.LogInformation("JS Console: {Message}", message);
         return base.OnConsoleMessage(consoleMessage);
     }
 
     /// <summary>
     /// Capture JavaScript alerts (for debugging)
     /// </summary>
-    public override bool OnJsAlert(Android.Webkit.WebView? view, string? url, string message, JsResult result)
+    public override bool OnJsAlert(global::Android.Webkit.WebView? view, string? url, string message, JsResult result)
     {
-        _logger.LogInformation("JS Alert: {Url} - {Message}", url, message);
+        _logger?.LogInformation("JS Alert: {Url} - {Message}", url, message);
         result.Confirm();
         return true; // We handled it
     }
@@ -71,9 +54,9 @@ public class LoggingWebChromeClient : WebChromeClient
     /// <summary>
     /// Capture JavaScript confirmations
     /// </summary>
-    public override bool OnJsConfirm(Android.Webkit.WebView? view, string? url, string message, JsResult result)
+    public override bool OnJsConfirm(global::Android.Webkit.WebView? view, string? url, string message, JsResult result)
     {
-        _logger.LogInformation("JS Confirm: {Url} - {Message}", url, message);
+        _logger?.LogInformation("JS Confirm: {Url} - {Message}", url, message);
         result.Confirm();
         return true;
     }
@@ -81,22 +64,10 @@ public class LoggingWebChromeClient : WebChromeClient
     /// <summary>
     /// Capture JavaScript prompts
     /// </summary>
-    public override bool OnJsPrompt(Android.Webkit.WebView? view, string? url, string message, string defaultValue, JsPromptResult result)
+    public override bool OnJsPrompt(global::Android.Webkit.WebView? view, string? url, string message, string defaultValue, JsPromptResult result)
     {
-        _logger.LogInformation("JS Prompt: {Url} - {Message} (Default: {Default})", url, message, defaultValue);
+        _logger?.LogInformation("JS Prompt: {Url} - {Message} (Default: {Default})", url, message, defaultValue);
         result.Confirm(defaultValue);
         return true;
-    }
-
-    /// <summary>
-    /// Capture uncaught JavaScript exceptions
-    /// </summary>
-    public override void OnUnhandledKeyEvent(Android.Views.KeyEvent? e)
-    {
-        if (e?.KeyCode == Android.Views.Keycode.Unknown)
-        {
-            _logger.LogWarning("Unhandled key event in WebView");
-        }
-        base.OnUnhandledKeyEvent(e);
     }
 }
