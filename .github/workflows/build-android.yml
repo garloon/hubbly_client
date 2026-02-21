@@ -32,7 +32,7 @@ jobs:
       uses: android-actions/setup-android@v3
 
     - name: Install .NET workloads
-      run: dotnet workload install android
+      run: dotnet workload install maui-android
 
     - name: Accept Android SDK licenses
       run: |
