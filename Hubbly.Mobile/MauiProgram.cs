@@ -80,6 +80,8 @@ public static class MauiProgram
         services.AddSingleton<WebViewService>();
         services.AddSingleton<INavigationService, SimpleNavigationService>();
         services.AddSingleton<ILogViewerService, LogViewerService>();
+        services.AddSingleton<IThemeService, ThemeService>();
+        services.AddSingleton<ILocalizationService, LocalizationService>();
 
         // HTTP client (Singleton)
         services.AddSingleton<HttpClient>(sp =>
@@ -111,6 +113,9 @@ public static class MauiProgram
         services.AddTransient<WelcomeViewModel>();
         services.AddTransient<AvatarSelectionViewModel>();
         services.AddTransient<ChatRoomViewModel>();
+        services.AddTransient<SettingsViewModel>();
+        services.AddTransient<AboutViewModel>();
+        services.AddTransient<AppShellViewModel>();
     }
 
     private static void RegisterPages(IServiceCollection services)
@@ -118,6 +123,9 @@ public static class MauiProgram
         services.AddTransient<WelcomePage>();
         services.AddTransient<AvatarSelectionPage>();
         services.AddTransient<ChatRoomPage>();
+        services.AddTransient<SettingsPage>();
+        services.AddTransient<AboutPage>();
+        services.AddTransient<AppShell>();
     }
     
     #endregion

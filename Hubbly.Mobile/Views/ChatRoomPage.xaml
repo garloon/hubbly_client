@@ -13,24 +13,44 @@
 
         <!-- ==================== 1. ШАПКА (10%) ==================== -->
         <Frame Grid.Row="0"
-               BackgroundColor="White"
+               BackgroundColor="{DynamicResource CardBackgroundColor}"
                Padding="15,10"
                Margin="0"
                HasShadow="True"
                CornerRadius="0">
 
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid ColumnDefinitions="Auto,*,Auto">
 
-                <!-- Название и статус (слева) -->
-                <VerticalStackLayout Grid.Column="0" 
-                                     Spacing="2" 
+                <!-- Hamburger Menu Button (слева) -->
+                <Frame Grid.Column="0"
+                       Padding="0"
+                       BackgroundColor="Transparent"
+                       WidthRequest="40"
+                       HeightRequest="40"
+                       CornerRadius="20"
+                       HasShadow="False"
+                       IsClippedToBounds="True">
+                    <Button Text="☰"
+                            FontSize="20"
+                            TextColor="{DynamicResource TextColor}"
+                            BackgroundColor="Transparent"
+                            BorderWidth="0"
+                            Command="{Binding ToggleFlyoutCommand}"
+                            HorizontalOptions="Center"
+                            VerticalOptions="Center" />
+                </Frame>
+
+                <!-- Название и статус (по центру) -->
+                <VerticalStackLayout Grid.Column="1"
+                                     Spacing="2"
                                      VerticalOptions="Center">
                     <Label Text="{Binding RoomName}"
                            FontSize="18"
                            FontAttributes="Bold"
-                           TextColor="#1E293B"/>
+                           TextColor="{DynamicResource TextColor}"
+                           HorizontalTextAlignment="Center" />
 
-                    <HorizontalStackLayout Spacing="5">
+                    <HorizontalStackLayout Spacing="5" HorizontalOptions="Center">
                         <BoxView Color="#10B981"
                                  WidthRequest="6"
                                  HeightRequest="6"
@@ -39,22 +59,17 @@
 
                         <Label Text="{Binding RoomStatus}"
                                FontSize="12"
-                               TextColor="#64748B"/>
+                               TextColor="{DynamicResource SecondaryTextColor}" />
                     </HorizontalStackLayout>
                 </VerticalStackLayout>
 
-                <!-- Иконка пользователя (справа) -->
-                <Frame Grid.Column="1"
+                <!-- Placeholder for balance (справа) -->
+                <Frame Grid.Column="2"
                        Padding="0"
-                       BackgroundColor="#F1F5F9"
-                       WidthRequest="36"
-                       HeightRequest="36"
-                       CornerRadius="18">
-                    <Label Text="👤"
-                           FontSize="16"
-                           HorizontalOptions="Center"
-                           VerticalOptions="Center"/>
-                </Frame>
+                       BackgroundColor="Transparent"
+                       WidthRequest="40"
+                       HeightRequest="40"
+                       HasShadow="False" />
             </Grid>
         </Frame>
 

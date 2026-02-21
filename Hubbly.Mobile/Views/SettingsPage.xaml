@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodels="clr-namespace:Hubbly.Mobile.ViewModels"
+             xmlns:converters="clr-namespace:Hubbly.Mobile.Converters"
+             x:Class="Hubbly.Mobile.Views.SettingsPage"
+             x:DataType="viewmodels:SettingsViewModel"
+             Title="{Binding SettingsTitle}"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
+
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <converters:BooleanToThemeNameConverter x:Key="BooleanToThemeNameConverter" />
+            <converters:BooleanToLanguageNameConverter x:Key="BooleanToLanguageNameConverter" />
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*,Auto" Padding="20">
+
+        <!-- Header -->
+        <VerticalStackLayout Grid.Row="0" Spacing="5">
+            <Label Text="{Binding SettingsTitle}"
+                   FontSize="24"
+                   FontAttributes="Bold"
+                   TextColor="{DynamicResource TextColor}" />
+            <BoxView HeightRequest="1"
+                     Color="{DynamicResource BorderColor}" />
+        </VerticalStackLayout>
+
+        <!-- Settings Content -->
+        <ScrollView Grid.Row="1" VerticalScrollBarVisibility="Never">
+            <VerticalStackLayout Spacing="25" Padding="0,20,0,0">
+
+                <!-- Theme Section -->
+                <Frame BackgroundColor="{DynamicResource CardBackgroundColor}"
+                       BorderColor="{DynamicResource BorderColor}"
+                       CornerRadius="12"
+                       Padding="15"
+                       HasShadow="False">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="{Binding ThemeLabel}"
+                               FontSize="18"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextColor}" />
+
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="15">
+                            <!-- Theme Label -->
+                            <Label Grid.Column="0"
+                                   Text="{Binding IsDarkTheme, Converter={StaticResource BooleanToThemeNameConverter}}"
+                                   FontSize="16"
+                                   TextColor="{DynamicResource SecondaryTextColor}"
+                                   VerticalOptions="Center" />
+
+                            <!-- Theme Toggle -->
+                            <Grid Grid.Column="1"
+                                  VerticalOptions="Center">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Light Option -->
+                                <Label Grid.Column="0"
+                                       Text="{Binding LightTheme}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource SecondaryTextColor}"
+                                       VerticalOptions="Center"
+                                       Margin="0,0,10,0" />
+
+                                <!-- Switch -->
+                                <Switch Grid.Column="1"
+                                        IsToggled="{Binding IsDarkTheme}"
+                                        OnColor="{DynamicResource PrimaryColor}"
+                                        VerticalOptions="Center" />
+
+                                <!-- Dark Option -->
+                                <Label Grid.Column="2"
+                                       Text="{Binding DarkTheme}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource SecondaryTextColor}"
+                                       VerticalOptions="Center"
+                                       Margin="10,0,0,0" />
+                            </Grid>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Frame>
+
+                <!-- Language Section -->
+                <Frame BackgroundColor="{DynamicResource CardBackgroundColor}"
+                       BorderColor="{DynamicResource BorderColor}"
+                       CornerRadius="12"
+                       Padding="15"
+                       HasShadow="False">
+                    <VerticalStackLayout Spacing="10">
+                        <Label Text="{Binding LanguageLabel}"
+                               FontSize="18"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextColor}" />
+
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="15">
+                            <!-- Current Language -->
+                            <Label Grid.Column="0"
+                                   Text="{Binding CurrentLanguage, Converter={StaticResource BooleanToLanguageNameConverter}}"
+                                   FontSize="16"
+                                   TextColor="{DynamicResource SecondaryTextColor}"
+                                   VerticalOptions="Center" />
+
+                            <!-- Language Buttons -->
+                            <HorizontalStackLayout Grid.Column="1"
+                                                   Spacing="10">
+                                <Button Text="{Binding Russian}"
+                                        Command="{Binding SetRussianCommand}"
+                                        BackgroundColor="{DynamicResource PrimaryColor}"
+                                        TextColor="White"
+                                        CornerRadius="8"
+                                        Padding="20,10"
+                                        FontSize="14"
+                                        BorderWidth="0"
+                                        VisualStateManager.VisualStateGroups="{StaticResource ButtonStates}"
+                                        IsEnabled="{Binding IsRussian}" />
+
+                                <Button Text="{Binding English}"
+                                        Command="{Binding SetEnglishCommand}"
+                                        BackgroundColor="{DynamicResource PrimaryColor}"
+                                        TextColor="White"
+                                        CornerRadius="8"
+                                        Padding="20,10"
+                                        FontSize="14"
+                                        BorderWidth="0"
+                                        VisualStateManager.VisualStateGroups="{StaticResource ButtonStates}"
+                                        IsEnabled="{Binding IsEnglish}" />
+                            </HorizontalStackLayout>
+                        </Grid>
+                    </VerticalStackLayout>
+                </Frame>
+
+                <!-- App Info -->
+                <Frame BackgroundColor="{DynamicResource CardBackgroundColor}"
+                       BorderColor="{DynamicResource BorderColor}"
+                       CornerRadius="12"
+                       Padding="15"
+                       HasShadow="False">
+                    <VerticalStackLayout Spacing="8">
+                        <Label Text="{Binding AboutAppName}"
+                               FontSize="16"
+                               FontAttributes="Bold"
+                               TextColor="{DynamicResource TextColor}" />
+
+                        <Label Text="{Binding VersionText}"
+                               FontSize="14"
+                               TextColor="{DynamicResource SecondaryTextColor}" />
+
+                        <Label Text="{Binding AboutDescription}"
+                               FontSize="14"
+                               TextColor="{DynamicResource SecondaryTextColor}"
+                               LineBreakMode="WordWrap" />
+                    </VerticalStackLayout>
+                </Frame>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Footer -->
+        <VerticalStackLayout Grid.Row="2"
+                             Spacing="5"
+                             HorizontalOptions="Center"
+                             Padding="0,10,0,0">
+            <Label Text="© 2025 Hubbly"
+                   FontSize="12"
+                   TextColor="{DynamicResource SecondaryTextColor}"
+                   HorizontalTextAlignment="Center" />
+        </VerticalStackLayout>
+
+    </Grid>
+
+</ContentPage>

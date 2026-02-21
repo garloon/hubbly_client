@@ -8,7 +8,6 @@ namespace Hubbly.Mobile;
 public partial class App : Application, IDisposable
 {
     private readonly ILogger<App> _logger;
-    private readonly INavigationService _navigationService;
     private readonly SignalRService _signalRService;
     private readonly CancellationTokenSource _cts = new();
     private bool _disposed;
@@ -19,12 +18,11 @@ public partial class App : Application, IDisposable
         InitializeComponent();
 
         _logger = serviceProvider.GetRequiredService<ILogger<App>>();
-        _navigationService = serviceProvider.GetRequiredService<INavigationService>();
         _signalRService = serviceProvider.GetRequiredService<SignalRService>();
 
         _logger.LogInformation("App initializing...");
 
-        // Setup main page
+        // Setup main page with Shell
         SetupMainPage(serviceProvider);
 
         // Subscribe to connectivity events
@@ -42,54 +40,17 @@ public partial class App : Application, IDisposable
     {
         try
         {
-            var welcomePage = serviceProvider.GetRequiredService<WelcomePage>();
-            var navigationPage = new NavigationPage(welcomePage);
+            // Use AppShell as main page
+            var appShell = serviceProvider.GetRequiredService<AppShell>();
+            MainPage = appShell;
 
-            NavigationPage.SetHasNavigationBar(navigationPage.CurrentPage, false);
-            navigationPage.BarBackgroundColor = Colors.Transparent;
-            navigationPage.BarTextColor = Colors.Transparent;
-
-            // Setup navigation error handling
-            navigationPage.Popped += OnNavigationPopped;
-            navigationPage.PoppedToRoot += OnNavigationPoppedToRoot;
-
-            MainPage = navigationPage;
-
-            _logger.LogInformation("Main page set to NavigationPage with WelcomePage");
+            _logger.LogInformation("Main page set to AppShell");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to setup main page");
             throw;
         }
-    }
-
-    #endregion
-
-    #region Navigation Event Handlers
-
-    private void OnNavigationPopped(object sender, NavigationEventArgs e)
-    {
-        _logger.LogDebug("Navigation popped: {PageType}", e.Page?.GetType().Name);
-
-        // Clean up resources of leaving page if it's IDisposable
-        if (e.Page is IDisposable disposablePage)
-        {
-            try
-            {
-                disposablePage.Dispose();
-                _logger.LogTrace("Disposed page: {PageType}", e.Page.GetType().Name);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error disposing page: {PageType}", e.Page.GetType().Name);
-            }
-        }
-    }
-
-    private void OnNavigationPoppedToRoot(object sender, NavigationEventArgs e)
-    {
-        _logger.LogDebug("Navigation popped to root");
     }
 
     #endregion
@@ -109,14 +70,8 @@ public partial class App : Application, IDisposable
             var currentPage = Current?.MainPage;
             _logger.LogDebug("Current MainPage type: {PageType}", currentPage?.GetType().Name);
 
-            if (currentPage is NavigationPage navPage)
-            {
-                _logger.LogDebug("Navigation stack size: {StackSize}",
-                    navPage.Navigation.NavigationStack.Count);
-            }
-
             // Check if we need to restore connection
-            if (Current?.MainPage is NavigationPage { CurrentPage: ChatRoomPage })
+            if (Current?.MainPage is Shell shell && shell.CurrentPage is ChatRoomPage)
             {
                 _logger.LogDebug("On ChatRoomPage, checking connection...");
 
@@ -146,7 +101,7 @@ public partial class App : Application, IDisposable
         try
         {
             // If we're in chat, disconnect to save resources
-            if (Current?.MainPage is NavigationPage { CurrentPage: ChatRoomPage })
+            if (Current?.MainPage is Shell { CurrentPage: ChatRoomPage })
             {
                 _logger.LogInformation("App sleeping on ChatRoomPage, disconnecting...");
 
@@ -172,7 +127,7 @@ public partial class App : Application, IDisposable
         try
         {
             // If we're in chat, reconnect
-            if (Current?.MainPage is NavigationPage { CurrentPage: ChatRoomPage })
+            if (Current?.MainPage is Shell { CurrentPage: ChatRoomPage })
             {
                 _logger.LogInformation("App resumed on ChatRoomPage, reconnecting...");
 
@@ -205,8 +160,8 @@ public partial class App : Application, IDisposable
                     _logger.LogInformation("✅ Internet connection restored");
 
                     // If we're in chat - reconnect
-                    if (Current?.MainPage is NavigationPage navPage &&
-                        navPage.CurrentPage is ChatRoomPage chatPage &&
+                    if (Current?.MainPage is Shell shell &&
+                        shell.CurrentPage is ChatRoomPage chatPage &&
                         chatPage.BindingContext is ChatRoomViewModel viewModel)
                     {
                         if (!_signalRService.IsConnected)
@@ -221,7 +176,7 @@ public partial class App : Application, IDisposable
                     _logger.LogWarning("❌ Internet connection lost");
 
                     // Show notification if we're in chat
-                    if (Current?.MainPage is NavigationPage { CurrentPage: ChatRoomPage })
+                    if (Current?.MainPage is Shell { CurrentPage: ChatRoomPage })
                     {
                         await Current.MainPage.DisplayAlert(
                             "Connection Lost",
@@ -260,12 +215,8 @@ public partial class App : Application, IDisposable
         Connectivity.ConnectivityChanged -= OnConnectivityChanged;
         RequestedThemeChanged -= OnRequestedThemeChanged;
 
-        // Clear navigation events
-        if (MainPage is NavigationPage navigationPage)
-        {
-            navigationPage.Popped -= OnNavigationPopped;
-            navigationPage.PoppedToRoot -= OnNavigationPoppedToRoot;
-        }
+        // Clear navigation events (not needed with Shell)
+        // Shell handles navigation automatically
 
         // Stop SignalR
         _signalRService?.Dispose();

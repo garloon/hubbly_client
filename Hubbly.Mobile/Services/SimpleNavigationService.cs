@@ -46,31 +46,24 @@ public class SimpleNavigationService : INavigationService, IDisposable
             {
                 try
                 {
-                    if (Application.Current?.MainPage is not NavigationPage navigationPage)
+                    if (Application.Current?.MainPage is not Shell shell)
                     {
-                        _logger.LogError("NavigationService: MainPage is not NavigationPage. Type: {Type}",
+                        _logger.LogError("NavigationService: MainPage is not Shell. Type: {Type}",
                             Application.Current?.MainPage?.GetType().Name);
                         return;
                     }
 
-                    _logger.LogDebug("NavigationService: Current stack size: {StackSize}",
-                        navigationPage.Navigation.NavigationStack.Count);
+                    _logger.LogDebug("NavigationService: Using Shell navigation to {Route}", route);
 
-                    Page page = route switch
-                    {
-                        "//ChatRoomPage" => _serviceProvider.GetRequiredService<ChatRoomPage>(),
-                        "//WelcomePage" => _serviceProvider.GetRequiredService<WelcomePage>(),
-                        "//AvatarSelectionPage" => _serviceProvider.GetRequiredService<AvatarSelectionPage>(),
-                        _ => throw new ArgumentException($"Unknown route: {route}")
-                    };
-
-                    // Pass parameters if any
-                    if (parameters != null && page.BindingContext is IQueryAttributable attributable)
-                    {
-                        attributable.ApplyQueryAttributes(parameters);
-                    }
-
-                    await navigationPage.Navigation.PushAsync(page);
+                    // For Shell, we use GoToAsync with route
+                    // Routes are defined in AppShell.xaml:
+                    // - chat (FlyoutItem)
+                    // - settings (FlyoutItem)
+                    // - about (FlyoutItem)
+                    // - //welcome (absolute route to WelcomePage)
+                    // - //avatarselection (absolute route to AvatarSelectionPage)
+                    
+                    await shell.GoToAsync(route);
 
                     _logger.LogInformation("✅ NavigationService: Navigated to {Route}", route);
                 }
@@ -105,19 +98,20 @@ public class SimpleNavigationService : INavigationService, IDisposable
             {
                 try
                 {
-                    if (Application.Current?.MainPage is not NavigationPage navigationPage)
+                    if (Application.Current?.MainPage is not Shell shell)
                     {
-                        _logger.LogError("NavigationService: MainPage is not NavigationPage");
+                        _logger.LogError("NavigationService: MainPage is not Shell");
                         return;
                     }
 
-                    if (navigationPage.Navigation.NavigationStack.Count <= 1)
+                    // Check if we can go back
+                    if (shell.Navigation.NavigationStack.Count <= 1)
                     {
                         _logger.LogWarning("NavigationService: Cannot go back - at root page");
                         return;
                     }
 
-                    await navigationPage.Navigation.PopAsync();
+                    await shell.Navigation.PopAsync();
 
                     _logger.LogInformation("✅ NavigationService: Went back");
                 }
@@ -152,13 +146,14 @@ public class SimpleNavigationService : INavigationService, IDisposable
             {
                 try
                 {
-                    if (Application.Current?.MainPage is not NavigationPage navigationPage)
+                    if (Application.Current?.MainPage is not Shell shell)
                     {
-                        _logger.LogError("NavigationService: MainPage is not NavigationPage");
+                        _logger.LogError("NavigationService: MainPage is not Shell");
                         return;
                     }
 
-                    await navigationPage.Navigation.PopToRootAsync();
+                    // Navigate to root (welcome page)
+                    await shell.GoToAsync("//welcome");
 
                     _logger.LogInformation("✅ NavigationService: Navigated to root");
                 }
@@ -181,12 +176,12 @@ public class SimpleNavigationService : INavigationService, IDisposable
 
         return await MainThread.InvokeOnMainThreadAsync(() =>
         {
-            if (Application.Current?.MainPage is not NavigationPage navigationPage)
+            if (Application.Current?.MainPage is not Shell shell)
             {
                 return null;
             }
 
-            return navigationPage.Navigation.NavigationStack.LastOrDefault();
+            return shell.CurrentPage;
         });
     }
 

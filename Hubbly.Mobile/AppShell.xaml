@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Shell
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:views="clr-namespace:Hubbly.Mobile.Views"
+    xmlns:viewmodels="clr-namespace:Hubbly.Mobile.ViewModels"
+    x:Class="Hubbly.Mobile.AppShell"
+    FlyoutBehavior="Flyout"
+    FlyoutHeaderBehavior="CollapseOnScroll"
+    BackgroundColor="{DynamicResource PageBackgroundColor}"
+    Shell.FlyoutHeaderBehavior="CollapseOnScroll">
+
+    <!-- Shell Structure -->
+    <Shell.FlyoutHeader>
+        <Grid HeightRequest="150"
+              BackgroundColor="{DynamicResource PrimaryColor}"
+              Padding="20">
+            <VerticalStackLayout VerticalOptions="Center">
+                <!-- User Avatar -->
+                <Frame WidthRequest="70"
+                       HeightRequest="70"
+                       CornerRadius="35"
+                       BackgroundColor="White"
+                       Padding="0"
+                       HasShadow="False"
+                       HorizontalOptions="Center"
+                       IsClippedToBounds="True">
+                    <Label Text="{Binding UserInitials}"
+                           FontSize="28"
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource PrimaryColor}"
+                           HorizontalTextAlignment="Center"
+                           VerticalTextAlignment="Center" />
+                </Frame>
+
+                <!-- User Nickname -->
+                <Label Text="{Binding UserNickname}"
+                       FontSize="16"
+                       FontAttributes="Bold"
+                       TextColor="White"
+                       HorizontalTextAlignment="Center"
+                       Margin="0,10,0,0" />
+
+                <!-- Online Status (placeholder for future) -->
+                <Label Text="Online"
+                       FontSize="12"
+                       TextColor="#CCFFFFFF"
+                       HorizontalTextAlignment="Center" />
+            </VerticalStackLayout>
+        </Grid>
+    </Shell.FlyoutHeader>
+
+    <!-- Flyout Menu Items -->
+    <FlyoutItem Title="{Binding ChatRoomTitle}"
+                Icon="chat.png"
+                Route="chat"
+                FlyoutDisplayOptions="AsMultipleItems">
+        <ShellContent
+            ContentTemplate="{DataTemplate views:ChatRoomPage}"
+            Route="chat" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="{Binding SettingsTitle}"
+                Icon="settings.png"
+                Route="settings">
+        <ShellContent
+            ContentTemplate="{DataTemplate views:SettingsPage}"
+            Route="settings" />
+    </FlyoutItem>
+
+    <FlyoutItem Title="{Binding AboutTitle}"
+                Icon="info.png"
+                Route="about">
+        <ShellContent
+            ContentTemplate="{DataTemplate views:AboutPage}"
+            Route="about" />
+    </FlyoutItem>
+
+    <!-- Logout Menu Item -->
+    <MenuItem Text="{Binding LogoutTitle}"
+              Command="{Binding LogoutCommand}"
+              IsDestructive="True" />
+
+    <!-- Register additional routes for non-flyout pages -->
+    <ShellContent Route="welcome" ContentTemplate="{DataTemplate views:WelcomePage}" />
+    <ShellContent Route="avatarselection" ContentTemplate="{DataTemplate views:AvatarSelectionPage}" />
+
+</Shell>

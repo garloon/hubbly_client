@@ -97,14 +97,14 @@ public partial class WelcomeViewModel : ObservableObject, IDisposable
                 // Valid session exists - go directly to chat
                 _logger.LogInformation("Valid token found, navigating to chat");
                 StatusMessage = "Restoring your session...";
-                await _navigationService.NavigateToAsync("//ChatRoomPage");
+                await _navigationService.NavigateToAsync("//chat");
             }
             else
             {
                 // No session - go to create avatar
                 _logger.LogInformation("No valid token, navigating to avatar selection");
                 StatusMessage = "Creating new avatar...";
-                await _navigationService.NavigateToAsync("//AvatarSelectionPage");
+                await _navigationService.NavigateToAsync("//avatarselection");
             }
 
             _logger.LogInformation("EnterAsGuest completed successfully");

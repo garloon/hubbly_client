@@ -497,6 +497,23 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
         }
     }
 
+    [RelayCommand]
+    private void ToggleFlyout()
+    {
+        try
+        {
+            if (Application.Current?.MainPage is Shell shell)
+            {
+                shell.FlyoutIsPresented = !shell.FlyoutIsPresented;
+                _logger.LogDebug("Flyout toggled. IsPresented: {IsPresented}", shell.FlyoutIsPresented);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling flyout");
+        }
+    }
+
     #endregion
 
     #region SignalR Event Handlers

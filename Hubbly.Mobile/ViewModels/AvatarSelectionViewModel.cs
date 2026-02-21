@@ -151,7 +151,7 @@ public partial class AvatarSelectionViewModel : ObservableObject, IDisposable, I
             _logger.LogInformation("✅ Avatar created successfully for user {UserId}", authResponse.User.Id);
 
             // 6. Navigate to chat
-            await _navigationService.NavigateToAsync("//ChatRoomPage");
+            await _navigationService.NavigateToAsync("//chat");
         }
         catch (OperationCanceledException)
         {
