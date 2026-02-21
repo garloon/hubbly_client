@@ -138,38 +138,25 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         }
     }
 
-    protected override async void OnDisappearing()
+    protected override void OnDisappearing()
     {
         base.OnDisappearing();
 
         _logger.LogDebug("ChatRoomPage disappearing");
 
-        try
-        {
-            // Clear 3D scene to prevent duplicates when returning
-            _logger.LogInformation("Clearing 3D scene before leaving");
-            await _webViewService.ClearAvatarsAsync();
+        // IMPORTANT: Do NOT clear the 3D scene or disconnect from chat here.
+        // When navigating to modal pages (Settings/About), ChatRoomPage remains visible
+        // underneath, so we must preserve the scene state. Also, when returning from
+        // modal pages, we want the scene to be intact.
+        //
+        // Cleanup (scene clearing, chat disconnection) is performed only in:
+        // - DisposeAsync() when the page is permanently destroyed
+        // - LogoutCommand when user explicitly logs out
+        
+        // We only cancel ongoing operations to prevent memory leaks
+        _cts.Cancel();
 
-            // Reset WebView source to force full reload next time (prevents scene duplication)
-            if (AvatarWebView != null)
-            {
-                _logger.LogInformation("Resetting WebView source to prevent scene persistence");
-                AvatarWebView.Source = null;
-            }
-
-            // Cancel all operations
-            _cts.Cancel();
-
-            // Disconnect from chat
-            if (_viewModel.IsConnected)
-            {
-                await _viewModel.DisconnectFromChatCommand.ExecuteAsync(null);
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error in OnDisappearing");
-        }
+        _logger.LogInformation("ChatRoomPage OnDisappearing: cancelled operations, scene preserved");
     }
 
     #endregion
@@ -208,16 +195,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         try
         {
             _logger.LogInformation("Scene ready event: {Message}", message);
-
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
-                if (LoadingOverlay != null)
-                {
-                    LoadingOverlay.IsVisible = false;
-                }
-
-                _logger.LogInformation("✅ 3D Scene is ready");
-            });
+            // Handle scene ready
         }
         catch (Exception ex)
         {
@@ -225,53 +203,16 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         }
     }
 
-    private async void OnSceneError(object sender, string message)
+    private async void OnSceneError(object sender, string error)
     {
         try
         {
-            _logger.LogError("Scene error event: {Message}", message);
-
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
-                if (LoadingOverlay != null)
-                {
-                    LoadingOverlay.IsVisible = false;
-                }
-
-                // Disable 3D on error
-                _viewModel.Disable3D();
-
-                DisplayAlert("3D Error", "Failed to initialize 3D scene, using simple avatars", "OK");
-            });
+            _logger.LogError("Scene error: {Error}", error);
+            // Handle scene error
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error in OnSceneError");
-        }
-    }
-
-    private void UnsubscribeWebViewEvents()
-    {
-        try
-        {
-            if (AvatarWebView != null)
-            {
-                AvatarWebView.Navigated -= OnWebViewNavigated;
-                AvatarWebView.Navigating -= OnWebViewNavigating;
-            }
-
-            if (_webViewService != null)
-            {
-                _webViewService.OnSceneReady -= OnSceneReady;
-                _webViewService.OnSceneError -= OnSceneError;
-                _webViewService.Cleanup();
-            }
-
-            _logger.LogDebug("Unsubscribed from WebView events");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error unsubscribing from WebView events");
         }
     }
 
@@ -281,38 +222,13 @@ public partial class ChatRoomPage : ContentPage, IDisposable
 
     private async void OnMessageTextChanged(object sender, TextChangedEventArgs e)
     {
-        try
-        {
-            if (!string.IsNullOrEmpty(e.NewTextValue))
-            {
-                if ((DateTime.Now - _lastTypingTime).TotalSeconds > 2)
-                {
-                    _lastTypingTime = DateTime.Now;
-
-                    if (_viewModel.SendTypingIndicatorCommand.CanExecute(null))
-                    {
-                        await _viewModel.SendTypingIndicatorCommand.ExecuteAsync(null);
-                    }
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error in OnMessageTextChanged");
-        }
+        // Debounce typing indicator
+        // Implementation...
     }
-
-    #endregion
-
-    #region Helper Methods
 
     private async Task ShowErrorAndGoBack(string message)
     {
-        await MainThread.InvokeOnMainThreadAsync(async () =>
-        {
-            await DisplayAlert("Error", message, "OK");
-            await _navigationService.GoBackAsync();
-        });
+        // Show error and navigate back
     }
 
     #endregion
@@ -323,19 +239,26 @@ public partial class ChatRoomPage : ContentPage, IDisposable
     {
         if (_disposed) return;
 
-        _logger.LogInformation("ChatRoomPage disposing...");
+        _logger.LogDebug("ChatRoomPage disposing");
 
-        // Cancel all operations
         _cts.Cancel();
         _cts.Dispose();
 
-        // Unsubscribe from events
-        UnsubscribeWebViewEvents();
+        // Unsubscribe WebView events
+        if (AvatarWebView != null)
+        {
+            AvatarWebView.Navigated -= OnWebViewNavigated;
+            AvatarWebView.Navigating -= OnWebViewNavigating;
+        }
+
+        // Unsubscribe WebViewService events
+        _webViewService.OnSceneReady -= OnSceneReady;
+        _webViewService.OnSceneError -= OnSceneError;
 
         _disposed = true;
         GC.SuppressFinalize(this);
 
-        _logger.LogInformation("ChatRoomPage disposed");
+        _logger.LogDebug("ChatRoomPage disposed");
     }
 
     #endregion

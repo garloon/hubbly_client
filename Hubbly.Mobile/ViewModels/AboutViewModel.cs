@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Hubbly.Mobile.Services;
+using Microsoft.Extensions.Logging;
 using System.Threading.Tasks;
 
 namespace Hubbly.Mobile.ViewModels;
@@ -8,6 +9,7 @@ namespace Hubbly.Mobile.ViewModels;
 public partial class AboutViewModel : ObservableObject, IDisposable
 {
     private readonly ILocalizationService _localizationService;
+    private readonly ILogger<AboutViewModel> _logger;
     private bool _disposed;
 
     [ObservableProperty]
@@ -33,9 +35,10 @@ public partial class AboutViewModel : ObservableObject, IDisposable
 
     public ILocalizationService LocalizationService => _localizationService;
 
-    public AboutViewModel(ILocalizationService localizationService)
+    public AboutViewModel(ILocalizationService localizationService, ILogger<AboutViewModel> logger)
     {
         _localizationService = localizationService;
+        _logger = logger;
 
         // Subscribe to language changes
         _localizationService.LanguageChanged += OnLanguageChanged;
@@ -101,8 +104,28 @@ public partial class AboutViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private async Task GoBack()
     {
-        if (Shell.Current != null)
+        _logger.LogInformation("🔙 AboutViewModel: GoBackCommand executed");
+        
+        try
         {
+            // Try to close as modal first
+            if (Shell.Current?.CurrentPage?.Navigation != null)
+            {
+                _logger.LogInformation("🔍 Attempting to pop modal page");
+                await Shell.Current.CurrentPage.Navigation.PopModalAsync();
+                _logger.LogInformation("✅ Successfully closed modal page");
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException || ex is NullReferenceException)
+        {
+            _logger.LogWarning(ex, "⚠️ Failed to close as modal (no modal pages), falling back to Shell navigation");
+            // Fallback to Shell navigation
+            await Shell.Current.GoToAsync("//chat");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Error closing modal page");
+            // Fallback to Shell navigation
             await Shell.Current.GoToAsync("//chat");
         }
     }

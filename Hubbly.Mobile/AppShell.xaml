@@ -66,25 +66,15 @@
             Route="chat" />
     </FlyoutItem>
 
-    <FlyoutItem Title="{Binding SettingsTitle}"
-                Icon="settings.png"
-                Route="settings">
-        <ShellContent
-            ContentTemplate="{DataTemplate views:SettingsPage}"
-            Route="settings" />
-    </FlyoutItem>
-
-    <FlyoutItem Title="{Binding AboutTitle}"
-                Icon="info.png"
-                Route="about">
-        <ShellContent
-            ContentTemplate="{DataTemplate views:AboutPage}"
-            Route="about" />
-    </FlyoutItem>
-
     <!-- Logout Menu Item -->
     <MenuItem Text="{Binding LogoutTitle}"
               Command="{Binding LogoutCommand}"
               IsDestructive="True" />
+
+    <!-- Additional Menu Items (opened modally) -->
+    <MenuItem Text="{Binding SettingsTitle}"
+              Command="{Binding OpenSettingsCommand}" />
+    <MenuItem Text="{Binding AboutTitle}"
+              Command="{Binding OpenAboutCommand}" />
 
 </Shell>

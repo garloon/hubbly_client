@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Hubbly.Mobile.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Hubbly.Mobile.ViewModels;
 
@@ -9,6 +10,8 @@ public partial class AppShellViewModel : ObservableObject, IDisposable
     private readonly IThemeService _themeService;
     private readonly ILocalizationService _localizationService;
     private readonly TokenManager _tokenManager;
+    private readonly INavigationService _navigationService;
+    private readonly ILogger<AppShellViewModel> _logger;
     private bool _disposed;
 
     [ObservableProperty]
@@ -35,11 +38,15 @@ public partial class AppShellViewModel : ObservableObject, IDisposable
 
     public AppShellViewModel(IThemeService themeService,
                              ILocalizationService localizationService,
-                             TokenManager tokenManager)
+                             TokenManager tokenManager,
+                             INavigationService navigationService,
+                             ILogger<AppShellViewModel> logger)
     {
         _themeService = themeService;
         _localizationService = localizationService;
         _tokenManager = tokenManager;
+        _navigationService = navigationService;
+        _logger = logger;
 
         // Load user data
         _ = LoadUserDataAsync();
@@ -120,10 +127,21 @@ public partial class AppShellViewModel : ObservableObject, IDisposable
 
             // Navigate back to Welcome page (clear navigation stack)
             await Shell.Current.GoToAsync("//welcome");
-
-            // Optional: Clear all pages from navigation stack except Welcome
-            // Shell navigation will handle this with the // route
         }
+    }
+
+    [RelayCommand]
+    private async Task OpenSettings()
+    {
+        _logger.LogInformation("🔰 AppShellViewModel: OpenSettingsCommand executed");
+        await _navigationService.NavigateToAsync("//settings");
+    }
+
+    [RelayCommand]
+    private async Task OpenAbout()
+    {
+        _logger.LogInformation("🔰 AppShellViewModel: OpenAboutCommand executed");
+        await _navigationService.NavigateToAsync("//about");
     }
 
     public void Dispose()

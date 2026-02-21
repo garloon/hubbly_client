@@ -55,17 +55,40 @@ public class SimpleNavigationService : INavigationService, IDisposable
 
                     _logger.LogDebug("NavigationService: Using Shell navigation to {Route}", route);
 
-                    // For Shell, we use GoToAsync with route
-                    // Routes are defined in AppShell.xaml:
-                    // - chat (FlyoutItem)
-                    // - settings (FlyoutItem)
-                    // - about (FlyoutItem)
-                    // - //welcome (absolute route to WelcomePage)
-                    // - //avatarselection (absolute route to AvatarSelectionPage)
-                    
-                    await shell.GoToAsync(route);
+                    // Check if this should be a modal navigation
+                    // Modal routes: settings, about (show as overlay without losing chat state)
+                    if (route.StartsWith("//settings") || route.StartsWith("//about"))
+                    {
+                        _logger.LogInformation("🔍 NavigationService: Detected modal route {Route}", route);
+                        
+                        // Resolve the page from DI container
+                        var pageType = GetPageTypeFromRoute(route);
+                        if (pageType == null)
+                        {
+                            _logger.LogError("NavigationService: Cannot resolve page type for route {Route}", route);
+                            return;
+                        }
 
-                    _logger.LogInformation("✅ NavigationService: Navigated to {Route}", route);
+                        var page = _serviceProvider.GetRequiredService(pageType) as Page;
+                        if (page == null)
+                        {
+                            _logger.LogError("NavigationService: Failed to create page for route {Route}", route);
+                            return;
+                        }
+
+                        _logger.LogInformation("🔍 NavigationService: Created page {PageType} for modal", pageType.Name);
+
+                        // Show as modal
+                        _logger.LogInformation("🔍 NavigationService: About to call PushModalAsync");
+                        await shell.CurrentPage.Navigation.PushModalAsync(page);
+                        _logger.LogInformation("✅ NavigationService: Opened modal page for route {Route}", route);
+                    }
+                    else
+                    {
+                        // Regular Shell navigation
+                        await shell.GoToAsync(route);
+                        _logger.LogInformation("✅ NavigationService: Navigated to {Route}", route);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -78,6 +101,20 @@ public class SimpleNavigationService : INavigationService, IDisposable
         {
             _navigationLock.Release();
         }
+    }
+
+    private Type GetPageTypeFromRoute(string route)
+    {
+        // Map routes to page types
+        // Note: route may contain query parameters, so we need to parse
+        var cleanRoute = route.Split('?')[0].TrimStart('/');
+        
+        return cleanRoute.ToLowerInvariant() switch
+        {
+            "settings" => typeof(SettingsPage),
+            "about" => typeof(AboutPage),
+            _ => null
+        };
     }
 
     public async Task GoBackAsync()
