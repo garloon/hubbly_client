@@ -12,6 +12,7 @@ public partial class BootstrapperViewModel : ObservableObject
     private readonly TokenManager _tokenManager;
     private readonly AuthService _authService;
     private readonly INavigationService _navigationService;
+    private readonly DeviceIdService _deviceIdService;
     private readonly CancellationTokenSource _cts = new();
     private bool _isRunning;
 
@@ -22,12 +23,14 @@ public partial class BootstrapperViewModel : ObservableObject
         ILogger<BootstrapperViewModel> logger,
         TokenManager tokenManager,
         AuthService authService,
-        INavigationService navigationService)
+        INavigationService navigationService,
+        DeviceIdService deviceIdService)
     {
         _logger = logger;
         _tokenManager = tokenManager;
         _authService = authService;
         _navigationService = navigationService;
+        _deviceIdService = deviceIdService;
 
         _logger.LogInformation("BootstrapperViewModel created");
     }
@@ -74,22 +77,25 @@ public partial class BootstrapperViewModel : ObservableObject
             // Step 3: Try to refresh the token if needed
             StatusMessage = "Refreshing session...";
             
-            try
-            {
-                var refreshResult = await _authService.RefreshTokenAsync();
-                if (!refreshResult.Success)
-                {
-                    _logger.LogWarning("Token refresh failed: {Error}", refreshResult.ErrorMessage);
-                    await ClearTokensAndRedirect();
-                    return;
-                }
+           try
+           {
+               var deviceId = _deviceIdService.GetPersistentDeviceId();
+               var authResponse = await _authService.RefreshTokenAsync(refreshToken, deviceId);
+               
+               // Check if we got valid tokens
+               if (string.IsNullOrEmpty(authResponse.AccessToken) || string.IsNullOrEmpty(authResponse.RefreshToken))
+               {
+                   _logger.LogWarning("Token refresh returned invalid tokens");
+                   await ClearTokensAndRedirect();
+                   return;
+               }
 
-                // Save new tokens
-                await _tokenManager.SetAsync("access_token", refreshResult.AccessToken);
-                await _tokenManager.SetAsync("refresh_token", refreshResult.RefreshToken);
-                
-                _logger.LogInformation("Tokens refreshed successfully");
-            }
+               // Save new tokens
+               await _tokenManager.SetAsync("access_token", authResponse.AccessToken);
+               await _tokenManager.SetAsync("refresh_token", authResponse.RefreshToken);
+               
+               _logger.LogInformation("Tokens refreshed successfully");
+           }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Token refresh error");
@@ -113,7 +119,7 @@ public partial class BootstrapperViewModel : ObservableObject
             _logger.LogInformation("Bootstrapper complete - navigating to chat room");
 
             await Task.Delay(500, _cts.Token);
-            await _navigationService.NavigateToAsync("//chatroom");
+            await _navigationService.NavigateToAsync("//chat");
         }
         catch (OperationCanceledException)
         {
@@ -136,20 +142,15 @@ public partial class BootstrapperViewModel : ObservableObject
         await Task.CompletedTask;
     }
 
-    private async Task ClearTokensAndRedirect()
-    {
-        _logger.LogInformation("Clearing tokens and redirecting to welcome");
-        
-        // Clear all stored auth data
-        await _tokenManager.RemoveAsync("access_token");
-        await _tokenManager.RemoveAsync("refresh_token");
-        await _tokenManager.RemoveAsync("user_id");
-        await _tokenManager.RemoveAsync("nickname");
-        await _tokenManager.RemoveEncryptedAsync("avatar_config");
-        await _tokenManager.RemoveEncryptedAsync("nickname");
+   private async Task ClearTokensAndRedirect()
+   {
+       _logger.LogInformation("Clearing tokens and redirecting to welcome");
+       
+       // Clear all stored auth data
+       _tokenManager.Clear();
 
-        await _navigationService.NavigateToAsync("//welcome");
-    }
+       await _navigationService.NavigateToAsync("//welcome");
+   }
 
     private async Task ShowErrorAndNavigate(string errorMessage)
     {

@@ -7,7 +7,6 @@
     x:Class="Hubbly.Mobile.AppShell"
     x:Name="Shell"
     FlyoutBehavior="Flyout"
-    FlyoutHeaderBehavior="CollapseOnScroll"
     BackgroundColor="{DynamicResource PageBackgroundColor}"
     Shell.FlyoutHeaderBehavior="CollapseOnScroll"
     Shell.NavBarIsVisible="False">
@@ -52,6 +51,11 @@
         </Grid>
     </Shell.FlyoutHeader>
 
+    <!-- Non-flyout pages (shown without menu) -->
+    <ShellContent Route="bootstrapper" ContentTemplate="{DataTemplate views:BootstrapperPage}" />
+    <ShellContent Route="welcome" ContentTemplate="{DataTemplate views:WelcomePage}" />
+    <ShellContent Route="avatarselection" ContentTemplate="{DataTemplate views:AvatarSelectionPage}" />
+
     <!-- Flyout Menu Items -->
     <FlyoutItem Title="{Binding ChatRoomTitle}"
                 Icon="chat.png"
@@ -82,10 +86,5 @@
     <MenuItem Text="{Binding LogoutTitle}"
               Command="{Binding LogoutCommand}"
               IsDestructive="True" />
-
-    <!-- Register additional routes for non-flyout pages -->
-    <ShellContent Route="bootstrapper" ContentTemplate="{DataTemplate views:BootstrapperPage}" />
-    <ShellContent Route="welcome" ContentTemplate="{DataTemplate views:WelcomePage}" />
-    <ShellContent Route="avatarselection" ContentTemplate="{DataTemplate views:AvatarSelectionPage}" />
 
 </Shell>
