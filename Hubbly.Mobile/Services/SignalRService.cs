@@ -10,6 +10,7 @@ public class SignalRService : IDisposable
 {
     private readonly TokenManager _tokenManager;
     private readonly AuthService _authService;
+    private readonly WebViewService _webViewService;
     private readonly ILogger<SignalRService> _logger;
 
     // Synchronization
@@ -61,10 +62,11 @@ public class SignalRService : IDisposable
     public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected && _isConnected;
     public HubConnectionState ConnectionState => _hubConnection?.State ?? HubConnectionState.Disconnected;
 
-    public SignalRService(TokenManager tokenManager, AuthService authService, ILogger<SignalRService> logger)
+    public SignalRService(TokenManager tokenManager, AuthService authService, WebViewService webViewService, ILogger<SignalRService> logger)
     {
         _tokenManager = tokenManager ?? throw new ArgumentNullException(nameof(tokenManager));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
+        _webViewService = webViewService ?? throw new ArgumentNullException(nameof(webViewService));
         _logger = logger;
 
         // Read server URL from Preferences
@@ -795,8 +797,7 @@ public class SignalRService : IDisposable
             {
                 try
                 {
-                    var webViewService = MauiProgram.ServiceProvider.GetRequiredService<WebViewService>();
-                    await webViewService.PlayAnimationAsync(userId, animationType, false);
+                    await _webViewService.PlayAnimationAsync(userId, animationType, false);
                 }
                 catch (Exception ex)
                 {

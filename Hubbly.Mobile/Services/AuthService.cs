@@ -106,6 +106,13 @@ public class AuthService : IDisposable
                 await _tokenManager.SetEncryptedAsync("user_id", authResponse.User.Id.ToString());
             }
 
+            // Save server device ID (if provided) for token refresh
+            if (!string.IsNullOrEmpty(authResponse.DeviceId))
+            {
+                Preferences.Set("server_device_id", authResponse.DeviceId);
+                _logger.LogInformation("AuthService: Saved server device ID: {DeviceId}", authResponse.DeviceId);
+            }
+
             _logger.LogInformation("AuthService: Authentication successful for user {UserId}",
                 authResponse?.User?.Id);
 

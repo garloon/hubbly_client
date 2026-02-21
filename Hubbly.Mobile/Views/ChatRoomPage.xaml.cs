@@ -103,6 +103,14 @@ public partial class ChatRoomPage : ContentPage, IDisposable
 
         try
         {
+            // Re-initialize WebView source if it was reset in OnDisappearing
+            if (AvatarWebView.Source == null)
+            {
+                _logger.LogInformation("Re-initializing WebView source after cache clear");
+                var serverUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
+                AvatarWebView.Source = $"{serverUrl.TrimEnd('/')}/three_scene.html";
+            }
+
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
             cts.CancelAfter(TimeSpan.FromSeconds(10));
             
@@ -138,6 +146,17 @@ public partial class ChatRoomPage : ContentPage, IDisposable
 
         try
         {
+            // Clear 3D scene to prevent duplicates when returning
+            _logger.LogInformation("Clearing 3D scene before leaving");
+            await _webViewService.ClearAvatarsAsync();
+
+            // Reset WebView source to force full reload next time (prevents scene duplication)
+            if (AvatarWebView != null)
+            {
+                _logger.LogInformation("Resetting WebView source to prevent scene persistence");
+                AvatarWebView.Source = null;
+            }
+
             // Cancel all operations
             _cts.Cancel();
 

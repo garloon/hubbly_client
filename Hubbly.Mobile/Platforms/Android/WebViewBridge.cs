@@ -11,10 +11,12 @@ namespace Hubbly.Mobile.Platforms.Android;
 public class WebViewBridge : Java.Lang.Object
 {
     private readonly WeakReference<MWebView> _webView;
+    private readonly WebViewService _webViewService;
 
-    public WebViewBridge(MWebView webView) 
+    public WebViewBridge(MWebView webView, WebViewService webViewService)
     {
         _webView = new WeakReference<MWebView>(webView);
+        _webViewService = webViewService ?? throw new ArgumentNullException(nameof(webViewService));
     }
 
     [JavascriptInterface]
@@ -40,8 +42,7 @@ public class WebViewBridge : Java.Lang.Object
         {
             try
             {
-                var webViewService = MauiProgram.ServiceProvider.GetRequiredService<WebViewService>();
-                webViewService.HandleJsMessage(jsonMessage);
+                _webViewService.HandleJsMessage(jsonMessage);
             }
             catch (Exception ex)
             {

@@ -1,6 +1,8 @@
 ﻿using Android.Webkit;
+using Microsoft.Maui;
 using Microsoft.Maui.Handlers;
 using Microsoft.Maui.Controls;
+using Hubbly.Mobile.Services;
 using AWebView = Android.Webkit.WebView;
 
 namespace Hubbly.Mobile.Platforms.Android;
@@ -32,7 +34,8 @@ public class CustomWebViewHandler : WebViewHandler
         // 👇🏻 Explicitly cast to MAUI WebView
         if (VirtualView is Microsoft.Maui.Controls.WebView mauiWebView)
         {
-            var bridge = new WebViewBridge(mauiWebView);
+            var webViewService = MauiContext.Services.GetRequiredService<WebViewService>();
+            var bridge = new WebViewBridge(mauiWebView, webViewService);
             platformView.AddJavascriptInterface(bridge, "hubblyBridge");
             Console.WriteLine("✅ CustomWebViewHandler initialized with bridge");
         }

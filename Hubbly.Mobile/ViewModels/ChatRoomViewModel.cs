@@ -10,13 +10,14 @@ using static Hubbly.Mobile.Services.SignalRService;
 
 namespace Hubbly.Mobile.ViewModels;
 
-public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAttributable
+public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDisposable, IQueryAttributable
 {
     private readonly ILogger<ChatRoomViewModel> _logger;
     private readonly SignalRService _signalRService;
     private readonly WebViewService _webViewService;
     private readonly INavigationService _navigationService;
     private readonly TokenManager _tokenManager;
+    private readonly AuthService _authService;
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
     private readonly SemaphoreSlim _avatarLock = new(1, 1);
     private readonly SemaphoreSlim _messageLock = new(1, 1);
@@ -89,12 +90,14 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
         WebViewService webViewService,
         INavigationService navigationService,
         TokenManager tokenManager,
+        AuthService authService,
         ILogger<ChatRoomViewModel> logger)
     {
         _signalRService = signalRService ?? throw new ArgumentNullException(nameof(signalRService));
         _webViewService = webViewService ?? throw new ArgumentNullException(nameof(webViewService));
         _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
         _tokenManager = tokenManager ?? throw new ArgumentNullException(nameof(tokenManager));
+        _authService = authService ?? throw new ArgumentNullException(nameof(authService));
 
         _logger = logger;
 
@@ -618,6 +621,9 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
                     OnlineAvatars.Remove(avatar);
                 }
 
+                // Remove from processed users set to allow re-adding if they rejoin
+                _processedUserIds.Remove(data.UserId);
+
                 // Add system message with nickname
                 Messages.Add(new ChatMessage
                 {
@@ -760,7 +766,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
                     "Session Expired",
                     "Your session has expired. Please login again.",
                     "OK");
-                await _navigationService.NavigateToAsync("//WelcomePage");
+                await _navigationService.NavigateToAsync("//welcome");
             });
         }
         catch (Exception ex)
@@ -1098,8 +1104,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
         LoadUserData();
 
         // Check server health
-        var authService = MauiProgram.ServiceProvider.GetRequiredService<AuthService>();
-        var isAvailable = await authService.CheckServerHealthAsync();
+        var isAvailable = await _authService.CheckServerHealthAsync();
 
         if (!isAvailable)
         {
@@ -1142,15 +1147,40 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
 
     #region IDisposable
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
 
-        _logger.LogInformation("ChatRoomViewModel disposing...");
+        _logger.LogInformation("ChatRoomViewModel disposing async...");
 
+        // Cancel and dispose CTS
         _cts.Cancel();
         _cts.Dispose();
 
+        // Clear 3D avatars first
+        if (_is3DEnabled)
+        {
+            try
+            {
+                await _webViewService.ClearAvatarsAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error clearing avatars during dispose");
+            }
+        }
+
+        // Disconnect from chat
+        try
+        {
+            await DisconnectFromChat();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error disconnecting from chat during dispose");
+        }
+
+        // Dispose sync resources
         _connectionLock.Dispose();
         _avatarLock.Dispose();
         _messageLock.Dispose();
@@ -1169,7 +1199,17 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
         _disposed = true;
         GC.SuppressFinalize(this);
 
-        _logger.LogInformation("ChatRoomViewModel disposed");
+        _logger.LogInformation("ChatRoomViewModel disposed async");
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+
+        _logger.LogInformation("ChatRoomViewModel disposing sync...");
+
+        // Call async dispose synchronously for compatibility
+        DisposeAsync().AsTask().GetAwaiter().GetResult();
     }
 
     #endregion
