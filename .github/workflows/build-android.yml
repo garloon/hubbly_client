@@ -37,7 +37,7 @@ jobs:
     - name: Accept Android SDK licenses
       run: |
         yes | sdkmanager --licenses || true
-        sdkmanager "platforms;android-34" "build-tools;34.0.0"
+        sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
     - name: Restore dependencies
       run: dotnet restore Hubbly.Client.sln
