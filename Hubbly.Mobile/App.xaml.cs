@@ -45,6 +45,17 @@ public partial class App : Application, IDisposable
             MainPage = appShell;
 
             _logger.LogInformation("Main page set to AppShell");
+
+            // Navigate to welcome page as initial route (after a short delay to ensure Shell is ready)
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                await Task.Delay(100);
+                if (Shell.Current?.CurrentPage is not WelcomePage)
+                {
+                    await Shell.Current.GoToAsync("//welcome");
+                    _logger.LogInformation("Navigated to welcome page as initial route");
+                }
+            });
         }
         catch (Exception ex)
         {
