@@ -908,6 +908,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
     private async Task<bool> WaitForSceneWithTimeout(int timeoutMs)
     {
         var startTime = DateTime.Now;
+        var checkInterval = 500; // Check every 500ms
 
         while (!_webViewService.IsSceneReady)
         {
@@ -917,7 +918,14 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
                 return false;
             }
 
-            await Task.Delay(100, _cts.Token);
+            // Log progress every 3 seconds
+            var elapsed = (DateTime.Now - startTime).TotalMilliseconds;
+            if (elapsed > 0 && (elapsed % 3000) < 100)
+            {
+                _logger.LogDebug("Waiting for scene... ({Elapsed}ms elapsed)", elapsed);
+            }
+
+            await Task.Delay(checkInterval, _cts.Token);
         }
 
         return true;

@@ -525,8 +525,8 @@ public class WebViewService : IDisposable
             {
                 _logger.LogInformation("WebView navigation successful, waiting for Three.js scene to initialize...");
                 
-                // Give Three.js more time to load (5 seconds)
-                await Task.Delay(5000, _cts.Token);
+                // Give Three.js more time to load (15 seconds for better reliability on mobile)
+                await Task.Delay(15000, _cts.Token);
                 
                 _logger.LogInformation("Checking scene status after initial load...");
                 

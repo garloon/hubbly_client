@@ -14,9 +14,22 @@ public class CustomWebViewHandler : WebViewHandler
         // Enable JavaScript
         platformView.Settings.JavaScriptEnabled = true;
         platformView.Settings.DomStorageEnabled = true;
+        platformView.Settings.DatabaseEnabled = true;
         platformView.Settings.AllowFileAccess = true;
         platformView.Settings.AllowContentAccess = true;
-        platformView.Settings.MixedContentMode = MixedContentHandling.AlwaysAllow;
+        platformView.Settings.SetAllowFileAccessFromFileURLs(true);
+        platformView.Settings.SetAllowUniversalAccessFromFileURLs(true);
+        platformView.Settings.LoadWithOverviewMode = true;
+        platformView.Settings.UseWideViewPort = true;
+        platformView.Settings.MixedContentMode = MixedContentHandling.CompatibilityMode;
+        
+        // Enable zoom controls for better UX
+        platformView.Settings.SetSupportZoom(true);
+        platformView.Settings.BuiltInZoomControls = true;
+        platformView.Settings.DisplayZoomControls = false;
+
+        // Set WebChromeClient to capture console.log and errors from JavaScript
+        platformView.SetWebChromeClient(new LoggingWebChromeClient());
 
         // 👇🏻 Explicitly cast to MAUI WebView
         if (VirtualView is Microsoft.Maui.Controls.WebView mauiWebView)
