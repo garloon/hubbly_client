@@ -20,7 +20,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'
+        dotnet-version: '9.0.x'
 
     - name: Setup Java JDK
       uses: actions/setup-java@v4
@@ -32,7 +32,7 @@ jobs:
       uses: android-actions/setup-android@v3
 
     - name: Install .NET workloads
-      run: dotnet workload install android wasm-tools-net8
+      run: dotnet workload install android
 
     - name: Accept Android SDK licenses
       run: |
