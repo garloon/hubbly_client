@@ -48,25 +48,41 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         {
             if (AvatarWebView == null)
             {
-                _logger.LogError("AvatarWebView is null");
+                _logger.LogError("AvatarWebView is null - 3D will be disabled");
                 _viewModel.Disable3D();
                 return;
             }
 
+            // Log WebView source URL for debugging
+            _logger.LogInformation("WebView source URL: {Source}", AvatarWebView.Source?.ToString() ?? "null");
+
             // Subscribe to WebView events
             AvatarWebView.Navigated += OnWebViewNavigated;
+            AvatarWebView.Navigating += OnWebViewNavigating;
 
             // Initialize WebView service
             _webViewService.Initialize(AvatarWebView);
             _webViewService.OnSceneReady += OnSceneReady;
             _webViewService.OnSceneError += OnSceneError;
 
-            _logger.LogDebug("WebView initialized");
+            _logger.LogInformation("WebView initialized successfully");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error initializing WebView");
             _viewModel.Disable3D();
+        }
+    }
+
+    private void OnWebViewNavigating(object sender, WebNavigatingEventArgs e)
+    {
+        try
+        {
+            _logger.LogInformation("WebView navigating to: {Url}", e.Url);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in OnWebViewNavigating");
         }
     }
 
@@ -142,7 +158,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
     {
         try
         {
-            _logger.LogDebug("WebView navigated to: {Url}, Result: {Result}", e.Url, e.Result);
+            _logger.LogInformation("WebView navigated to: {Url}, Result: {Result}", e.Url, e.Result);
 
             MainThread.BeginInvokeOnMainThread(() =>
             {
@@ -151,6 +167,13 @@ public partial class ChatRoomPage : ContentPage, IDisposable
                     LoadingOverlay.IsVisible = e.Result != WebNavigationResult.Success;
                 }
             });
+
+            // Log additional details if navigation failed
+            if (e.Result != WebNavigationResult.Success)
+            {
+                _logger.LogWarning("WebView navigation failed with result: {Result}", e.Result);
+                // The scene error will be triggered by WebViewService through OnSceneError
+            }
         }
         catch (Exception ex)
         {
@@ -212,6 +235,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
             if (AvatarWebView != null)
             {
                 AvatarWebView.Navigated -= OnWebViewNavigated;
+                AvatarWebView.Navigating -= OnWebViewNavigating;
             }
 
             if (_webViewService != null)

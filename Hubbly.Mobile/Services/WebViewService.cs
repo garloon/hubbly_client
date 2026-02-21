@@ -523,14 +523,62 @@ public class WebViewService : IDisposable
 
             if (e.Result == WebNavigationResult.Success)
             {
-                // Give Three.js time to load
-                await Task.Delay(2000, _cts.Token);
-
+                _logger.LogInformation("WebView navigation successful, waiting for Three.js scene to initialize...");
+                
+                // Give Three.js more time to load (5 seconds)
+                await Task.Delay(5000, _cts.Token);
+                
+                _logger.LogInformation("Checking scene status after initial load...");
+                
                 // Check scene readiness
-                await CheckSceneStatus();
+                var isReady = await CheckSceneStatus();
+                
+                if (!isReady)
+                {
+                    _logger.LogWarning("Scene not ready after initial check, will retry in background");
+                    // Start background polling for scene readiness
+                    _ = Task.Run(async () =>
+                    {
+                        var retryCount = 0;
+                        var maxRetries = 6; // 30 seconds total with 5-second intervals
+                        
+                        while (!_isSceneReady && retryCount < maxRetries && !_cts.Token.IsCancellationRequested)
+                        {
+                            try
+                            {
+                                await Task.Delay(5000, _cts.Token);
+                                _logger.LogInformation("Retrying scene status check (attempt {RetryCount})", retryCount + 1);
+                                var ready = await CheckSceneStatus();
+                                if (ready)
+                                {
+                                    _logger.LogInformation("Scene became ready on retry {RetryCount}", retryCount + 1);
+                                    break;
+                                }
+                                retryCount++;
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                _logger.LogWarning("Scene status retry cancelled");
+                                break;
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "Error during scene status retry");
+                                retryCount++;
+                            }
+                        }
+                        
+                        if (!_isSceneReady && retryCount >= maxRetries)
+                        {
+                            _logger.LogError("Scene failed to become ready after {MaxRetries} retries", maxRetries);
+                            OnSceneError?.Invoke(this, "3D scene failed to initialize within timeout");
+                        }
+                    });
+                }
             }
             else
             {
+                _logger.LogError("WebView navigation failed with result: {Result}", e.Result);
                 OnSceneError?.Invoke(this, $"Navigation failed: {e.Result}");
             }
         }

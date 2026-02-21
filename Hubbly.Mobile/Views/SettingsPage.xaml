@@ -117,7 +117,6 @@
                                         Padding="20,10"
                                         FontSize="14"
                                         BorderWidth="0"
-                                        VisualStateManager.VisualStateGroups="{StaticResource ButtonStates}"
                                         IsEnabled="{Binding IsRussian}" />
 
                                 <Button Text="{Binding English}"
@@ -128,7 +127,6 @@
                                         Padding="20,10"
                                         FontSize="14"
                                         BorderWidth="0"
-                                        VisualStateManager.VisualStateGroups="{StaticResource ButtonStates}"
                                         IsEnabled="{Binding IsEnglish}" />
                             </HorizontalStackLayout>
                         </Grid>

@@ -9,6 +9,7 @@ public partial class App : Application, IDisposable
 {
     private readonly ILogger<App> _logger;
     private readonly SignalRService _signalRService;
+    private readonly TokenManager _tokenManager;
     private readonly CancellationTokenSource _cts = new();
     private bool _disposed;
     private bool _isSleeping;
@@ -19,6 +20,7 @@ public partial class App : Application, IDisposable
 
         _logger = serviceProvider.GetRequiredService<ILogger<App>>();
         _signalRService = serviceProvider.GetRequiredService<SignalRService>();
+        _tokenManager = serviceProvider.GetRequiredService<TokenManager>();
 
         _logger.LogInformation("App initializing...");
 
@@ -81,10 +83,19 @@ public partial class App : Application, IDisposable
             var currentPage = Current?.MainPage;
             _logger.LogDebug("Current MainPage type: {PageType}", currentPage?.GetType().Name);
 
-            // Check if we need to restore connection
+            // Check if we need to restore connection ONLY if user has completed avatar selection
+            // (has user_id stored) and we're on ChatRoomPage
             if (Current?.MainPage is Shell shell && shell.CurrentPage is ChatRoomPage)
             {
-                _logger.LogDebug("On ChatRoomPage, checking connection...");
+                // Check if user has completed avatar selection (has user_id)
+                var userId = await _tokenManager.GetAsync("user_id");
+                if (string.IsNullOrEmpty(userId))
+                {
+                    _logger.LogWarning("App OnStart: No user_id found - user hasn't completed avatar selection. Skipping SignalR connection.");
+                    return;
+                }
+
+                _logger.LogDebug("On ChatRoomPage with valid user, checking connection...");
 
                 // Check connection and restore if needed
                 await Task.Delay(1000);
@@ -137,10 +148,18 @@ public partial class App : Application, IDisposable
 
         try
         {
-            // If we're in chat, reconnect
+            // If we're in chat, reconnect ONLY if user has completed avatar selection
             if (Current?.MainPage is Shell { CurrentPage: ChatRoomPage })
             {
-                _logger.LogInformation("App resumed on ChatRoomPage, reconnecting...");
+                // Check if user has completed avatar selection (has user_id)
+                var userId = await _tokenManager.GetAsync("user_id");
+                if (string.IsNullOrEmpty(userId))
+                {
+                    _logger.LogWarning("App OnResume: No user_id found - user hasn't completed avatar selection. Skipping SignalR connection.");
+                    return;
+                }
+
+                _logger.LogInformation("App resumed on ChatRoomPage with valid user, reconnecting...");
 
                 await Task.Delay(1000); // Give time for network to restore
 
@@ -170,15 +189,29 @@ public partial class App : Application, IDisposable
                 {
                     _logger.LogInformation("✅ Internet connection restored");
 
-                    // If we're in chat - reconnect
+                    // If we're in chat - reconnect ONLY if user has completed avatar selection
                     if (Current?.MainPage is Shell shell &&
-                        shell.CurrentPage is ChatRoomPage chatPage &&
-                        chatPage.BindingContext is ChatRoomViewModel viewModel)
+                        shell.CurrentPage is ChatRoomPage chatPage)
                     {
+                        // Check if user has completed avatar selection (has user_id)
+                        var userId = await _tokenManager.GetAsync("user_id");
+                        if (string.IsNullOrEmpty(userId))
+                        {
+                            _logger.LogWarning("OnConnectivityChanged: No user_id found - skipping SignalR connection.");
+                            return;
+                        }
+
                         if (!_signalRService.IsConnected)
                         {
                             _logger.LogInformation("Reconnecting to chat after network restore");
-                            await viewModel.ConnectToChatCommand.ExecuteAsync(null);
+                            if (chatPage.BindingContext is ChatRoomViewModel viewModel)
+                            {
+                                await viewModel.ConnectToChatCommand.ExecuteAsync(null);
+                            }
+                            else
+                            {
+                                await _signalRService.StartConnection();
+                            }
                         }
                     }
                 }
