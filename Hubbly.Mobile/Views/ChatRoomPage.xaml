@@ -95,7 +95,6 @@
 
             <!-- WebView с Three.js (видим когда 3D включен) -->
             <WebView x:Name="AvatarWebView"
-                    Source="http://89.169.46.33:5000/three_scene.html"
                     VerticalOptions="Fill"
                     BackgroundColor="Transparent"
                     IsVisible="{Binding Is3DEnabled}"/>

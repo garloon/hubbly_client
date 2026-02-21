@@ -17,15 +17,51 @@
 
     <Grid RowDefinitions="Auto,*,Auto" Padding="20">
 
-        <!-- Header -->
-        <VerticalStackLayout Grid.Row="0" Spacing="5">
-            <Label Text="{Binding SettingsTitle}"
+        <!-- Header with Hamburger -->
+        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Padding="0,0,0,10">
+            <!-- Hamburger Menu Button (left) -->
+            <Frame Grid.Column="0"
+                   Padding="0"
+                   BackgroundColor="Transparent"
+                   WidthRequest="40"
+                   HeightRequest="40"
+                   CornerRadius="20"
+                   HasShadow="False"
+                   IsClippedToBounds="True">
+                <Button Text="☰"
+                        FontSize="20"
+                        TextColor="{DynamicResource TextColor}"
+                        BackgroundColor="Transparent"
+                        Command="{Binding ToggleFlyoutCommand}"
+                        BorderWidth="0" />
+            </Frame>
+
+            <!-- Title (center) -->
+            <Label Grid.Column="1"
+                   Text="{Binding SettingsTitle}"
                    FontSize="24"
                    FontAttributes="Bold"
-                   TextColor="{DynamicResource TextColor}" />
-            <BoxView HeightRequest="1"
-                     Color="{DynamicResource BorderColor}" />
-        </VerticalStackLayout>
+                   TextColor="{DynamicResource TextColor}"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center" />
+
+            <!-- Back to Chat Button (right) -->
+            <Frame Grid.Column="2"
+                   Padding="0"
+                   BackgroundColor="Transparent"
+                   WidthRequest="40"
+                   HeightRequest="40"
+                   CornerRadius="20"
+                   HasShadow="False"
+                   IsClippedToBounds="True">
+                <Button Text="←"
+                        FontSize="20"
+                        TextColor="{DynamicResource TextColor}"
+                        BackgroundColor="Transparent"
+                        Command="{Binding GoBackCommand}"
+                        BorderWidth="0" />
+            </Frame>
+        </Grid>
 
         <!-- Settings Content -->
         <ScrollView Grid.Row="1" VerticalScrollBarVisibility="Never">

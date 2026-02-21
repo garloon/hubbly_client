@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Hubbly.Mobile.Services;
 using Hubbly.Mobile.Converters;
+using System.Threading.Tasks;
 
 namespace Hubbly.Mobile.ViewModels;
 
@@ -177,6 +178,24 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         if (_currentLanguage != "en")
         {
             _localizationService.SetLanguage("en");
+        }
+    }
+
+    [RelayCommand]
+    private void ToggleFlyout()
+    {
+        if (Shell.Current != null)
+        {
+            Shell.Current.FlyoutIsPresented = !Shell.Current.FlyoutIsPresented;
+        }
+    }
+
+    [RelayCommand]
+    private async Task GoBack()
+    {
+        if (Shell.Current != null)
+        {
+            await Shell.Current.GoToAsync("//chat");
         }
     }
 

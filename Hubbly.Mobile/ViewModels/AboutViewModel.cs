@@ -1,6 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Hubbly.Mobile.Services;
+using System.Threading.Tasks;
 
 namespace Hubbly.Mobile.ViewModels;
 
@@ -86,6 +87,24 @@ public partial class AboutViewModel : ObservableObject, IDisposable
             "Privacy Policy",
             "Privacy Policy page will be available soon.",
             "OK");
+    }
+
+    [RelayCommand]
+    private void ToggleFlyout()
+    {
+        if (Shell.Current != null)
+        {
+            Shell.Current.FlyoutIsPresented = !Shell.Current.FlyoutIsPresented;
+        }
+    }
+
+    [RelayCommand]
+    private async Task GoBack()
+    {
+        if (Shell.Current != null)
+        {
+            await Shell.Current.GoToAsync("//chat");
+        }
     }
 
     private void UpdateVersionText()

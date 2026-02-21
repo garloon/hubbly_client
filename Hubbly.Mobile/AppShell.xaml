@@ -5,6 +5,7 @@
     xmlns:views="clr-namespace:Hubbly.Mobile.Views"
     xmlns:viewmodels="clr-namespace:Hubbly.Mobile.ViewModels"
     x:Class="Hubbly.Mobile.AppShell"
+    x:Name="Shell"
     FlyoutBehavior="Flyout"
     FlyoutHeaderBehavior="CollapseOnScroll"
     BackgroundColor="{DynamicResource PageBackgroundColor}"

@@ -234,6 +234,7 @@ public class SignalRService : IDisposable
 
             _isConnected = false;
             _reconnectAttempts = 0;
+            _lastConnectionAttempt = DateTime.MinValue;
 
             // Clear subscriptions
             UnsubscribeAll();

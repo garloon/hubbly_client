@@ -104,6 +104,9 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
         // Subscribe to collection changes for auto-scrolling
         _messages.CollectionChanged += OnMessagesCollectionChanged;
 
+        // Subscribe to SignalR events
+        InitializeSignalREvents();
+
         _logger.LogInformation("ChatRoomViewModel created");
     }
 
@@ -522,14 +525,18 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
     {
         try
         {
+            // Устанавливаем IsCurrentUser для корректного отображения
+            message.IsCurrentUser = message.SenderId == _userId;
+            
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 try
                 {
                     Messages.Add(message);
-                    _logger.LogDebug("Message added: {Sender}: {Content}",
+                    _logger.LogDebug("Message added: {Sender}: {Content}, IsCurrentUser: {IsCurrentUser}",
                         message.SenderNickname,
-                        message.Content?.Length > 30 ? message.Content.Substring(0, 30) + "..." : message.Content);
+                        message.Content?.Length > 30 ? message.Content.Substring(0, 30) + "..." : message.Content,
+                        message.IsCurrentUser);
                 }
                 catch (Exception ex)
                 {
@@ -1074,8 +1081,13 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
     {
         _logger.LogDebug("ChatRoomPage OnAppearing");
 
+        // Сбрасываем состояние подключения для принудительного переподключения
+        IsConnected = false;
+        IsBusy = false;
+        ConnectionError = string.Empty;
+        HasConnectionError = false;
+
         LoadUserData();
-        InitializeSignalREvents();
 
         // Check server health
         var authService = MauiProgram.ServiceProvider.GetRequiredService<AuthService>();
@@ -1088,11 +1100,8 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
             return;
         }
 
-        // Connect to chat
-        if (!IsConnected && !IsBusy)
-        {
-            await ConnectToChat();
-        }
+        // Всегда пытаемся подключиться при появлении страницы
+        await ConnectToChat();
     }
 
     public async Task OnDisappearing()

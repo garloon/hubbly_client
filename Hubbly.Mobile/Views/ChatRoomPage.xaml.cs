@@ -35,7 +35,13 @@ public partial class ChatRoomPage : ContentPage, IDisposable
 
         NavigationPage.SetHasNavigationBar(this, false);
 
+        // Initialize WebView (subscribe to events) before setting source
         InitializeWebView();
+
+        // Set WebView source dynamically based on server URL from Preferences
+        var serverUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
+        AvatarWebView.Source = $"{serverUrl.TrimEnd('/')}/three_scene.html";
+        _logger.LogInformation("WebView source set to: {Source}", AvatarWebView.Source);
 
         _logger.LogInformation("ChatRoomPage created");
     }
@@ -134,9 +140,6 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         {
             // Cancel all operations
             _cts.Cancel();
-
-            // Unsubscribe from WebView events
-            UnsubscribeWebViewEvents();
 
             // Disconnect from chat
             if (_viewModel.IsConnected)
