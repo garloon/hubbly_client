@@ -110,6 +110,7 @@ public static class MauiProgram
 
     private static void RegisterViewModels(IServiceCollection services)
     {
+        services.AddTransient<BootstrapperViewModel>();
         services.AddTransient<WelcomeViewModel>();
         services.AddTransient<AvatarSelectionViewModel>();
         services.AddTransient<ChatRoomViewModel>();
@@ -120,6 +121,7 @@ public static class MauiProgram
 
     private static void RegisterPages(IServiceCollection services)
     {
+        services.AddTransient<BootstrapperPage>();
         services.AddTransient<WelcomePage>();
         services.AddTransient<AvatarSelectionPage>();
         services.AddTransient<ChatRoomPage>();

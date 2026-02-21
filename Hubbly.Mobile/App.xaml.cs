@@ -48,14 +48,14 @@ public partial class App : Application, IDisposable
 
             _logger.LogInformation("Main page set to AppShell");
 
-            // Navigate to welcome page as initial route (after a short delay to ensure Shell is ready)
+            // Navigate to bootstrapper page to determine user state
             MainThread.BeginInvokeOnMainThread(async () =>
             {
                 await Task.Delay(100);
-                if (Shell.Current?.CurrentPage is not WelcomePage)
+                if (Shell.Current?.CurrentPage is not BootstrapperPage)
                 {
-                    await Shell.Current.GoToAsync("//welcome");
-                    _logger.LogInformation("Navigated to welcome page as initial route");
+                    await Shell.Current.GoToAsync("//bootstrapper");
+                    _logger.LogInformation("Navigated to bootstrapper page for initialization");
                 }
             });
         }

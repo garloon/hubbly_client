@@ -84,6 +84,7 @@
               IsDestructive="True" />
 
     <!-- Register additional routes for non-flyout pages -->
+    <ShellContent Route="bootstrapper" ContentTemplate="{DataTemplate views:BootstrapperPage}" />
     <ShellContent Route="welcome" ContentTemplate="{DataTemplate views:WelcomePage}" />
     <ShellContent Route="avatarselection" ContentTemplate="{DataTemplate views:AvatarSelectionPage}" />
 

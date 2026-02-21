@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodels="clr-namespace:Hubbly.Mobile.ViewModels"
+             x:Class="Hubbly.Mobile.Views.BootstrapperPage"
+             Title="Bootstrapper"
+             BackgroundColor="#0F172A">
+
+    <ContentPage.BindingContext>
+        <viewmodels:BootstrapperViewModel />
+    </ContentPage.BindingContext>
+
+    <Grid RowDefinitions="*,Auto"
+          ColumnDefinitions="*"
+          VerticalOptions="Center"
+          HorizontalOptions="Center">
+
+        <!-- Loading Spinner -->
+        <StackLayout Grid.Row="0"
+                     Grid.Column="0"
+                     HorizontalOptions="Center"
+                     VerticalOptions="Center"
+                     Spacing="20">
+            
+            <ActivityIndicator IsRunning="True"
+                               Color="#8B5CF6"
+                               WidthRequest="60"
+                               HeightRequest="60" />
+
+            <Label Text="Initializing..."
+                   TextColor="White"
+                   FontSize="18"
+                   HorizontalOptions="Center" />
+
+            <Label Text="{Binding StatusMessage}"
+                   TextColor="#94A3B8"
+                   FontSize="14"
+                   HorizontalOptions="Center" />
+        </StackLayout>
+
+        <!-- Version Info -->
+        <Label Grid.Row="1"
+               Grid.Column="0"
+               Text="Hubbly v1.0"
+               TextColor="#64748B"
+               FontSize="12"
+               HorizontalOptions="Center"
+               Margin="0,20,0,10" />
+    </Grid>
+</ContentPage>

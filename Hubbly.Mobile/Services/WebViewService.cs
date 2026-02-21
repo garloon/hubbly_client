@@ -56,8 +56,9 @@ public class WebViewService : IDisposable
 
         if (_isInitialized)
         {
-            _logger.LogWarning("WebViewService already initialized");
-            return;
+            _logger.LogWarning("WebViewService already initialized, reinitializing with new WebView");
+            // Clean up any previous WebView to avoid duplicates
+            Cleanup();
         }
 
         _webView = webView ?? throw new ArgumentNullException(nameof(webView));

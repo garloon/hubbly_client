@@ -863,8 +863,8 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IQueryAt
         {
             _logger.LogInformation("Adding self to 3D scene");
 
-            // Wait for scene readiness with timeout
-            var sceneReady = await WaitForSceneWithTimeout(5000);
+            // Wait for scene readiness with timeout (15 seconds for mobile)
+            var sceneReady = await WaitForSceneWithTimeout(15000);
 
             if (!sceneReady)
             {
