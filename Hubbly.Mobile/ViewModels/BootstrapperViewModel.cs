@@ -6,7 +6,7 @@ using System.Text.Json;
 
 namespace Hubbly.Mobile.ViewModels;
 
-public partial class BootstrapperViewModel : ObservableObject
+public partial class BootstrapperViewModel : ObservableObject, IDisposable
 {
     private readonly ILogger<BootstrapperViewModel> _logger;
     private readonly TokenManager _tokenManager;
@@ -15,6 +15,7 @@ public partial class BootstrapperViewModel : ObservableObject
     private readonly DeviceIdService _deviceIdService;
     private readonly CancellationTokenSource _cts = new();
     private bool _isRunning;
+    private bool _disposed;
 
     [ObservableProperty]
     private string _statusMessage = "Checking authentication...";
@@ -140,6 +141,21 @@ public partial class BootstrapperViewModel : ObservableObject
     {
         _cts.Cancel();
         await Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+
+        _logger.LogInformation("BootstrapperViewModel disposing...");
+
+        _cts.Cancel();
+        _cts.Dispose();
+
+        _disposed = true;
+        GC.SuppressFinalize(this);
+
+        _logger.LogInformation("BootstrapperViewModel disposed");
     }
 
    private async Task ClearTokensAndRedirect()
