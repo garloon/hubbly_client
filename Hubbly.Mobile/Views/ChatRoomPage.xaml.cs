@@ -9,7 +9,7 @@ namespace Hubbly.Mobile.Views;
 
 public partial class ChatRoomPage : ContentPage, IDisposable
 {
-    private readonly ILogger<ChatRoomPage> _logger;
+    private readonly ILogger _logger;
     private readonly ChatRoomViewModel _viewModel;
     private readonly WebViewService _webViewService;
     private readonly AuthService _authService;
@@ -23,7 +23,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         WebViewService webViewService,
         AuthService authService,
         INavigationService navigationService,
-        ILogger<ChatRoomPage> logger)
+        ILoggerFactory loggerFactory)
     {
         try
         {
@@ -36,7 +36,8 @@ public partial class ChatRoomPage : ContentPage, IDisposable
 
             BindingContext = _viewModel;
 
-            _logger = logger;
+            // Create logger manually from factory to ensure it's not null
+            _logger = loggerFactory?.CreateLogger<ChatRoomPage>() ?? throw new ArgumentNullException(nameof(loggerFactory));
 
             NavigationPage.SetHasNavigationBar(this, false);
 
