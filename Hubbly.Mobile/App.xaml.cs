@@ -61,14 +61,6 @@ public partial class App : Application, IDisposable
                 e.SetObserved();
             };
 
-            // Handle MAUI dispatcher exceptions
-            Dispatcher.UnhandledException += (sender, e) =>
-            {
-                _logger.LogCritical(e.Exception, "MAUI Dispatcher unhandled exception");
-                LogExceptionDetails(e.Exception);
-                e.Handled = true;
-            };
-
             _logger.LogInformation("Global exception handlers installed");
         }
         catch (Exception ex)
