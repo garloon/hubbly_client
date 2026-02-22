@@ -14,7 +14,7 @@ public class AvatarColorConverter : IValueConverter
     private static readonly ConcurrentDictionary<string, Color> _userColorCache = new();
     private static readonly Random _random = new Random();
 
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         // Current user - purple
         if (value is bool isCurrentUser && isCurrentUser)
@@ -34,6 +34,6 @@ public class AvatarColorConverter : IValueConverter
         return Color.FromArgb(_colors[0]);
     }
 
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotImplementedException();
 }

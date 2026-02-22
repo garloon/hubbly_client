@@ -21,10 +21,17 @@ public partial class AboutPage : ContentPage, IDisposable
         _logger.LogDebug("AboutPage created");
     }
 
-    protected override void OnAppearing()
+    protected override async void OnAppearing()
     {
         base.OnAppearing();
         _logger.LogDebug("AboutPage appearing");
+
+        // Fade-in animation
+        if (MainGrid != null)
+        {
+            MainGrid.Opacity = 0;
+            await MainGrid.FadeTo(1, 500, Easing.CubicInOut);
+        }
     }
 
     protected override void OnDisappearing()

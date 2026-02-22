@@ -3,9 +3,13 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              xmlns:converters="clr-namespace:Hubbly.Mobile.Converters"
+             xmlns:components="clr-namespace:Hubbly.Mobile.Components"
+             xmlns:viewmodels="clr-namespace:Hubbly.Mobile.ViewModels"
+             xmlns:models="clr-namespace:Hubbly.Mobile.Models"
              x:Class="Hubbly.Mobile.Views.ChatRoomPage"
+             x:DataType="viewmodels:ChatRoomViewModel"
              Title="Hubbly Chat"
-             BackgroundColor="#F8FAFC">
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
 
     <ContentPage.Resources>
         <ResourceDictionary>
@@ -18,367 +22,255 @@
             <converters:IsNotSystemMessageConverter x:Key="IsNotSystemMessageConverter" />
             <converters:IsSystemMessageConverter x:Key="IsSystemMessageConverter" />
             <converters:ContinueButtonColorConverter x:Key="ContinueButtonColorConverter" />
+            <converters:OrientationToValueConverter x:Key="OrientationToValueConverter" />
+            <converters:IsLandscapeConverter x:Key="IsLandscapeConverter" />
+            <converters:ScreenSizeToValueConverter x:Key="ScreenSizeToValueConverter" />
         </ResourceDictionary>
     </ContentPage.Resources>
 
-    <!-- Главный контейнер с пропорциями -->
-    <Grid RowDefinitions="0.1*,0.25*,0.075*,0.50*,0.075*" 
+    <!-- Адаптивный Grid с динамическими пропорциями -->
+    <Grid x:Name="MainGrid" RowDefinitions="Auto,*,2*,Auto"
           ColumnDefinitions="*"
           RowSpacing="0">
 
-        <!-- ==================== 1. ШАПКА (10%) ==================== -->
-        <Frame Grid.Row="0"
-               BackgroundColor="{DynamicResource CardBackgroundColor}"
-               Padding="15,10"
-               Margin="0"
-               HasShadow="True"
-               CornerRadius="0">
+        <!-- ==================== 1. HEADER (PageHeader component) ==================== -->
+        <components:PageHeader Grid.Row="0"
+                               Title="{Binding RoomName}"
+                               ShowMenuButton="True"
+                               ToggleFlyoutCommand="{Binding ToggleFlyoutCommand}"
+                               ShowActionButton="False" />
 
-            <Grid ColumnDefinitions="Auto,*,Auto">
-
-                <!-- Hamburger Menu Button (слева) -->
-                <Frame Grid.Column="0"
-                       Padding="0"
-                       BackgroundColor="Transparent"
-                       WidthRequest="40"
-                       HeightRequest="40"
-                       CornerRadius="20"
-                       HasShadow="False"
-                       IsClippedToBounds="True">
-                    <Button Text="☰"
-                            FontSize="20"
-                            TextColor="{DynamicResource TextColor}"
-                            BackgroundColor="Transparent"
-                            BorderWidth="0"
-                            Command="{Binding ToggleFlyoutCommand}"
-                            HorizontalOptions="Center"
-                            VerticalOptions="Center" />
-                </Frame>
-
-                <!-- Название и статус (по центру) -->
-                <VerticalStackLayout Grid.Column="1"
-                                     Spacing="2"
-                                     VerticalOptions="Center">
-                    <Label Text="{Binding RoomName}"
-                           FontSize="18"
-                           FontAttributes="Bold"
-                           TextColor="{DynamicResource TextColor}"
-                           HorizontalTextAlignment="Center" />
-
-                    <HorizontalStackLayout Spacing="5" HorizontalOptions="Center">
-                        <BoxView Color="#10B981"
-                                 WidthRequest="6"
-                                 HeightRequest="6"
-                                 CornerRadius="3"
-                                 VerticalOptions="Center"/>
-
-                        <Label Text="{Binding RoomStatus}"
-                               FontSize="12"
-                               TextColor="{DynamicResource SecondaryTextColor}" />
-                    </HorizontalStackLayout>
-                </VerticalStackLayout>
-
-                <!-- Placeholder for balance (справа) -->
-                <Frame Grid.Column="2"
-                       Padding="0"
-                       BackgroundColor="Transparent"
-                       WidthRequest="40"
-                       HeightRequest="40"
-                       HasShadow="False" />
-            </Grid>
-        </Frame>
-
-        <!-- ==================== 2. 3D СЦЕНА (25%) ==================== -->
+        <!-- ==================== 2. 3D SCENE AREA (1 part) ==================== -->
         <Grid Grid.Row="1"
-              BackgroundColor="#0F172A"
-              Padding="0">
+              ColumnDefinitions="*"
+              BackgroundColor="{DynamicResource SceneBackgroundColor}">
 
             <!-- WebView с Three.js (видим когда 3D включен) -->
             <WebView x:Name="AvatarWebView"
-                    VerticalOptions="Fill"
-                    BackgroundColor="Transparent"
-                    IsVisible="{Binding Is3DEnabled}"/>
+                     VerticalOptions="Fill"
+                     HorizontalOptions="Fill"
+                     BackgroundColor="Transparent"
+                     IsVisible="{Binding Is3DEnabled}" />
 
             <!-- Fallback UI (видим когда 3D отключен) -->
             <Grid IsVisible="{Binding Is3DEnabled, Converter={StaticResource InverseBoolConverter}}"
-                  BackgroundColor="#1E293B"
+                  BackgroundColor="{DynamicResource CardBackgroundColor}"
                   VerticalOptions="Fill"
-                  HorizontalOptions="Fill">
+                  HorizontalOptions="Fill"
+                  Padding="{StaticResource SpacingMd}">
 
                 <VerticalStackLayout HorizontalOptions="Center"
                                      VerticalOptions="Center"
-                                     Spacing="20">
+                                     Spacing="{StaticResource SpacingLg}">
 
-                    <Label Text="🎭"
-                           FontSize="48"
-                           TextColor="#94A3B8"/>
-
-                    <Label Text="3D mode unavailable"
+                    <!-- Online Avatars -->
+                    <Label Text="Online Users"
                            FontSize="16"
-                           TextColor="#94A3B8"
-                           HorizontalOptions="Center"/>
+                           FontAttributes="Bold"
+                           TextColor="{DynamicResource SecondaryTextColor}"
+                           HorizontalOptions="Center" />
 
-                    <!-- Список пользователей в виде аватаров -->
                     <CollectionView ItemsSource="{Binding OnlineAvatars}"
-                                   HorizontalOptions="Center"
-                                   VerticalOptions="Center"
-                                   Margin="0,20,0,0">
-                        <CollectionView.ItemsLayout>
-                            <LinearItemsLayout Orientation="Horizontal" 
-                                             ItemSpacing="15"/>
-                        </CollectionView.ItemsLayout>
+                                    HorizontalOptions="Center"
+                                    VerticalOptions="Center"
+                                    HeightRequest="200"
+                                    ItemsLayout="HorizontalList"
+                                    ItemSizingStrategy="MeasureAllItems">
+
                         <CollectionView.ItemTemplate>
                             <DataTemplate>
-                                <VerticalStackLayout Spacing="5"
-                                                   HorizontalOptions="Center">
-                                    <Frame BackgroundColor="{Binding Nickname, Converter={StaticResource AvatarColorConverter}}"
-                                           WidthRequest="50"
-                                           HeightRequest="50"
-                                           CornerRadius="25"
-                                           Padding="0"
-                                           HasShadow="True">
-                                        <Label Text="{Binding Nickname, Converter={StaticResource InitialsConverter}}"
-                                               TextColor="White"
-                                               FontSize="16"
-                                               FontAttributes="Bold"
-                                               HorizontalOptions="Center"
-                                               VerticalOptions="Center"/>
-                                    </Frame>
-                                    <Label Text="{Binding Nickname}"
-                                           FontSize="10"
-                                           TextColor="#94A3B8"
-                                           HorizontalOptions="Center"/>
-                                </VerticalStackLayout>
+                                <components:AvatarView Nickname="{Binding Nickname}"
+                                                       Size="Large"
+                                                       ShowOnlineStatus="True"
+                                                       IsOnline="True"
+                                                       Margin="8" />
                             </DataTemplate>
                         </CollectionView.ItemTemplate>
                     </CollectionView>
+
+                    <!-- Placeholder text -->
+                    <Label Text="3D mode unavailable"
+                           FontSize="14"
+                           TextColor="{DynamicResource SecondaryTextColor}"
+                           HorizontalOptions="Center"
+                           Opacity="0.7" />
                 </VerticalStackLayout>
             </Grid>
 
-            <!-- Loading Overlay (видим когда сцена грузится) -->
+            <!-- Loading Overlay -->
             <Grid x:Name="LoadingOverlay"
                   IsVisible="False"
-                  BackgroundColor="#CC0F172A"
+                  BackgroundColor="#80000000"
                   VerticalOptions="Fill"
                   HorizontalOptions="Fill">
 
                 <VerticalStackLayout HorizontalOptions="Center"
                                      VerticalOptions="Center"
-                                     Spacing="20">
+                                     Spacing="{StaticResource SpacingMd}">
 
                     <ActivityIndicator IsRunning="True"
-                                       Color="#4F46E5"
+                                       Color="{DynamicResource PrimaryColor}"
                                        WidthRequest="60"
-                                       HeightRequest="60"/>
+                                       HeightRequest="60" />
 
                     <Label Text="Loading 3D world..."
                            TextColor="White"
                            FontSize="16"
-                           HorizontalOptions="Center"/>
+                           HorizontalOptions="Center" />
                 </VerticalStackLayout>
             </Grid>
         </Grid>
 
-        <!-- ==================== 3. ПАНЕЛЬ ПОЛЬЗОВАТЕЛЯ (7.5%) ==================== -->
-        <Frame Grid.Row="2"
-               BackgroundColor="#F1F5F9"
-               Padding="10"
-               HasShadow="False"
-               CornerRadius="0">
-
-            <Grid ColumnDefinitions="*,Auto">
-
-                <!-- Текущий пользователь (по центру) -->
-                <Frame Grid.Column="0"
-                       BackgroundColor="White"
-                       Padding="12,6"
-                       CornerRadius="20"
-                       HorizontalOptions="Center">
-                    <Label Text="{Binding Nickname}"
-                           FontSize="15"
-                           FontAttributes="Bold"
-                           TextColor="#4F46E5"
-                           HorizontalOptions="Center"/>
-                </Frame>
+        <!-- ==================== 3. CHAT MESSAGES AREA (2 parts - 2x bigger than 3D) ==================== -->
+        <Grid Grid.Row="2"
+              BackgroundColor="{DynamicResource PageBackgroundColor}"
+              RowSpacing="0">
+            
+            <!-- Chat Messages CollectionView -->
+            <CollectionView x:Name="MessagesCollectionView"
+                            ItemsSource="{Binding Messages}"
+                            VerticalOptions="Fill"
+                            HorizontalOptions="Fill"
+                            BackgroundColor="Transparent"
+                            VerticalScrollBarVisibility="Always"
+                            HorizontalScrollBarVisibility="Never">
                 
-            </Grid>
-        </Frame>
-
-        <!-- ==================== 4. ОБЛАСТЬ СООБЩЕНИЙ (50%) ==================== -->
-        <Grid Grid.Row="3" 
-      BackgroundColor="#F8FAFC">
-
-            <!-- Паттерн фона (еле заметный) -->
-            <BoxView BackgroundColor="#F1F5F9"
-             Opacity="0.3"/>
-
-            <!-- Список сообщений -->
-            <ListView x:Name="MessagesListView"
-              ItemsSource="{Binding Messages}"
-              HasUnevenRows="True"
-              SeparatorVisibility="None"
-              VerticalScrollBarVisibility="Never"
-              BackgroundColor="Transparent"
-              Margin="0"
-              VerticalOptions="Fill">
-
-                <ListView.ItemTemplate>
-                    <DataTemplate>
-                        <ViewCell>
-                            <VerticalStackLayout Spacing="4">
-                                <!-- ДОБАВЛЕН РОДИТЕЛЬСКИЙ КОНТЕЙНЕР -->
-
-                                <!-- ========== СИСТЕМНОЕ СООБЩЕНИЕ ========== -->
-                                <Frame IsVisible="{Binding IsSystemMessage}"
-                               BackgroundColor="#FEF3C7"
-                               Padding="12,8"
-                               HorizontalOptions="Center"
-                               CornerRadius="20"
-                               Margin="20,8"
-                               HasShadow="False">
-                                    <HorizontalStackLayout Spacing="8">
-                                        <Label Text="⚡"
-                                       FontSize="14"/>
-                                        <Label Text="{Binding Content}"
-                                       FontSize="13"
-                                       TextColor="#92400E"
-                                       HorizontalOptions="Center"/>
-                                        <Label Text="{Binding SentAt, StringFormat='{0:HH:mm}'}"
-                                       FontSize="10"
-                                       TextColor="#92400E"
-                                       Opacity="0.8"/>
-                                    </HorizontalStackLayout>
-                                </Frame>
-
-                                <!-- ========== СООБЩЕНИЕ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ (СПРАВА) ========== -->
-                                <Frame IsVisible="{Binding IsCurrentUser}"
-                               BackgroundColor="#8B5CF6"
-                               Padding="12,8"
-                               HorizontalOptions="End"
-                               CornerRadius="4"
-                               Margin="60,4,12,4"
-                               HasShadow="False">
-                                    <VerticalStackLayout Spacing="2">
-                                        <Label Text="{Binding Content}"
-                                       FontSize="15"
-                                       TextColor="White"
-                                       LineBreakMode="WordWrap"/>
-                                        <Label Text="{Binding SentAt, StringFormat='{0:HH:mm}'}"
-                                       FontSize="10"
-                                       TextColor="#E0E7FF"
-                                       HorizontalOptions="End"/>
-                                    </VerticalStackLayout>
-                                </Frame>
-
-                                <!-- ========== СООБЩЕНИЕ ДРУГОГО ПОЛЬЗОВАТЕЛЯ (СЛЕВА) ========== -->
-                                <Grid IsVisible="{Binding IsOtherUserMessage}"
-                                      ColumnDefinitions="Auto, *"
-                                      Margin="12,4,60,4">
-
-                                    <!-- Аватар пользователя -->
-                                    <Frame Grid.Column="0"
-                                   BackgroundColor="{Binding SenderNickname, Converter={StaticResource AvatarColorConverter}}"
-                                   Padding="0"
-                                   WidthRequest="40"
-                                   HeightRequest="40"
-                                   CornerRadius="20"
-                                   Margin="0,0,8,0"
-                                   HasShadow="False">
-                                        <Label Text="{Binding SenderNickname, Converter={StaticResource InitialsConverter}}"
-                                       FontSize="14"
-                                       FontAttributes="Bold"
-                                       TextColor="White"
-                                       HorizontalOptions="Center"
-                                       VerticalOptions="Center"/>
-                                    </Frame>
-
-                                    <!-- Контент сообщения -->
-                                    <VerticalStackLayout Grid.Column="1" 
-                                                 Spacing="2">
-
-                                        <!-- Имя отправителя -->
-                                        <Label Text="{Binding SenderNickname}"
-                                       FontSize="12"
-                                       FontAttributes="Bold"
-                                       TextColor="#64748B"
-                                       Margin="0,0,0,2"/>
-
-                                        <!-- Текст сообщения -->
-                                        <Frame BackgroundColor="White"
-                                       Padding="12,8"
-                                       CornerRadius="4"
-                                       HasShadow="False">
-                                            <VerticalStackLayout>
-                                                <Label Text="{Binding Content}"
-                                               FontSize="15"
-                                               TextColor="#1E293B"
-                                               LineBreakMode="WordWrap"/>
-                                                <Label Text="{Binding SentAt, StringFormat='{0:HH:mm}'}"
-                                               FontSize="10"
-                                               TextColor="#94A3B8"
-                                               HorizontalOptions="End"/>
-                                            </VerticalStackLayout>
-                                        </Frame>
-                                    </VerticalStackLayout>
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="models:ChatMessage">
+                        <Grid Padding="{StaticResource SpacingMd}"
+                              Margin="0,2"
+                              BackgroundColor="Transparent">
+                            
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            
+                            <!-- Avatar -->
+                            <components:AvatarView Grid.Column="0"
+                                                   Nickname="{Binding SenderNickname}"
+                                                   AvatarColor="{Binding SenderNickname, Converter={StaticResource AvatarColorConverter}}"
+                                                   Size="Small"
+                                                   ShowOnlineStatus="False"
+                                                   IsOnline="True"
+                                                   Margin="0,0,8,0"
+                                                   VerticalOptions="Start"/>
+                            
+                            <!-- Message Content -->
+                            <Grid Grid.Column="1"
+                                  RowDefinitions="Auto,Auto"
+                                  RowSpacing="2">
+                                
+                                <!-- Sender Name & Time -->
+                                <Grid Grid.Row="0"
+                                      ColumnDefinitions="*,Auto"
+                                      VerticalOptions="Center">
+                                    <Label Text="{Binding SenderNickname}"
+                                           FontSize="12"
+                                           FontAttributes="Bold"
+                                           TextColor="{DynamicResource TextColor}"
+                                           VerticalOptions="Center"/>
+                                    <Label Grid.Column="1"
+                                           Text="{Binding SentAt, StringFormat='{0:HH:mm}'}"
+                                           FontSize="11"
+                                           TextColor="{DynamicResource SecondaryTextColor}"
+                                           VerticalOptions="Center"/>
                                 </Grid>
-
-                            </VerticalStackLayout>
-                            <!-- КОНЕЦ РОДИТЕЛЬСКОГО КОНТЕЙНЕРА -->
-                        </ViewCell>
+                                
+                                <!-- Message Text -->
+                                <Label Grid.Row="1"
+                                       Text="{Binding Content}"
+                                       FontSize="14"
+                                       TextColor="{DynamicResource TextColor}"
+                                       LineBreakMode="WordWrap"
+                                       VerticalOptions="Start"/>
+                            </Grid>
+                        </Grid>
                     </DataTemplate>
-                </ListView.ItemTemplate>
-            </ListView>
+                </CollectionView.ItemTemplate>
+                
+                <!-- Empty View when no messages -->
+                <CollectionView.EmptyView>
+                    <StackLayout VerticalOptions="Center"
+                                 HorizontalOptions="Center"
+                                 Spacing="12">
+                        <Label Text="💬"
+                               FontSize="48"
+                               HorizontalOptions="Center"
+                               Opacity="0.5"/>
+                        <Label Text="No messages yet"
+                               FontSize="16"
+                               TextColor="{DynamicResource SecondaryTextColor}"
+                               HorizontalOptions="Center"/>
+                    </StackLayout>
+                </CollectionView.EmptyView>
+            </CollectionView>
         </Grid>
 
-        <!-- ==================== 5. ПОЛЕ ВВОДА (7.5%) ==================== -->
-        <Frame Grid.Row="4"
+        <!-- ==================== 4. INPUT AREA (Auto) ==================== -->
+        <Frame Grid.Row="3"
                BackgroundColor="White"
-               Padding="8"
+               Padding="{StaticResource SpacingMd}"
                HasShadow="True"
-               CornerRadius="0">
+               CornerRadius="0"
+               Margin="0">
 
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid ColumnDefinitions="*,Auto"
+                  ColumnSpacing="{StaticResource SpacingSm}">
 
-                <!-- Поле ввода -->
+                <!-- Message Input -->
                 <Frame Grid.Column="0"
-                       BackgroundColor="#F1F5F9"
+                       BackgroundColor="{DynamicResource InputBackgroundColor}"
                        Padding="0"
-                       HeightRequest="52"
-                       CornerRadius="26"
+                       HeightRequest="{OnPlatform Android=52, iOS=50, WinUI=50}"
+                       CornerRadius="{StaticResource CornerRadiusLg}"
                        Margin="0,0,8,0">
 
-                    <Entry Placeholder="Напишите сообщение..."
-                           PlaceholderColor="#64748B"
-                           Text="{Binding MessageText}"
-                           ClearButtonVisibility="WhileEditing"
-                           FontSize="15"
-                           BackgroundColor="Transparent"
-                           TextColor="#1E293B"
-                           Margin="20,0"
-                           VerticalOptions="Center"
-                           VerticalTextAlignment="Center"
-                           ReturnType="Send"
-                           ReturnCommand="{Binding SendMessageCommand}">
-                        <Entry.Behaviors>
-                            <toolkit:EventToCommandBehavior 
-                                        EventName="Completed"
-                                        Command="{Binding SendMessageCommand}"/>
-                        </Entry.Behaviors>
-                    </Entry>
+                    <Grid ColumnDefinitions="Auto,*">
+                        <!-- User Avatar (small) -->
+                        <components:AvatarView Grid.Column="0"
+                                               Nickname="{Binding Nickname}"
+                                               AvatarColor="{DynamicResource PrimaryColor}"
+                                               Size="Small"
+                                               ShowOnlineStatus="False"
+                                               VerticalOptions="Center"
+                                               Margin="8,0,4,0" />
+
+                        <!-- Entry -->
+                        <Entry Grid.Column="1"
+                               Placeholder="Напишите сообщение..."
+                               PlaceholderColor="#64748B"
+                               Text="{Binding MessageText}"
+                               ClearButtonVisibility="WhileEditing"
+                               FontSize="15"
+                               BackgroundColor="Transparent"
+                               TextColor="#1E293B"
+                               VerticalOptions="Center"
+                               VerticalTextAlignment="Center"
+                               ReturnType="Send"
+                               ReturnCommand="{Binding SendMessageCommand}">
+                            <Entry.Behaviors>
+                                <toolkit:EventToCommandBehavior
+                                    EventName="Completed"
+                                    Command="{Binding SendMessageCommand}" />
+                            </Entry.Behaviors>
+                        </Entry>
+                    </Grid>
                 </Frame>
 
-                <!-- Кнопка отправки -->
+                <!-- Send Button -->
                 <Button Grid.Column="1"
                         Text="➤"
                         Command="{Binding SendMessageCommand}"
-                        WidthRequest="52"
-                        HeightRequest="52"
-                        CornerRadius="26"
-                        BackgroundColor="#4F46E5"
+                        WidthRequest="{StaticResource SpacingXl}"
+                        HeightRequest="{StaticResource SpacingXl}"
+                        CornerRadius="{StaticResource CornerRadiusCircle}"
+                        BackgroundColor="{DynamicResource PrimaryColor}"
                         TextColor="White"
                         FontSize="20"
                         FontAttributes="Bold"
-                        IsEnabled="{Binding MessageText, Converter={StaticResource StringNotEmptyConverter}}"/>
+                        IsEnabled="{Binding MessageText, Converter={StaticResource StringNotEmptyConverter}}"
+                        Style="{StaticResource PrimaryButtonStyle}" />
             </Grid>
         </Frame>
     </Grid>

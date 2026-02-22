@@ -4,7 +4,7 @@ namespace Hubbly.Mobile.Converters;
 
 public class GenderSelectionConverter : IValueConverter
 {
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is bool isSelected)
         {
@@ -15,7 +15,7 @@ public class GenderSelectionConverter : IValueConverter
         return Color.FromArgb("#FFFFFF");
     }
 
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         throw new NotImplementedException();
     }

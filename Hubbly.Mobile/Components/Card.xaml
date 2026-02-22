@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Border xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+        xmlns:converters="clr-namespace:Hubbly.Mobile.Converters"
+        xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
+        x:Class="Hubbly.Mobile.Components.Card"
+        x:Name="Root"
+        Stroke="{DynamicResource BorderColor}"
+        StrokeThickness="0"
+        BackgroundColor="{DynamicResource CardBackgroundColor}"
+        Padding="{StaticResource SpacingMd}">
+    <Border.Resources>
+        <ResourceDictionary>
+            <converters:ScreenSizeToValueConverter x:Key="ScreenSizeConverter" />
+        </ResourceDictionary>
+    </Border.Resources>
+
+    <Border.StrokeShape>
+        <shapes:RoundRectangle CornerRadius="12" />
+    </Border.StrokeShape>
+
+    <Grid>
+        <Label x:Name="TitleLabel"
+               Text="{Binding Title, Source={x:Reference Root}}"
+               FontSize="{Binding TitleFontSize, Source={x:Reference Root}}"
+               FontAttributes="Bold"
+               TextColor="{DynamicResource TextColor}"
+               IsVisible="{Binding ShowTitle, Source={x:Reference Root}}" />
+
+        <Label x:Name="SubtitleLabel"
+               Text="{Binding Subtitle, Source={x:Reference Root}}"
+               FontSize="{Binding SubtitleFontSize, Source={x:Reference Root}}"
+               TextColor="{DynamicResource SecondaryTextColor}"
+               Margin="0,2,0,0"
+               IsVisible="{Binding ShowSubtitle, Source={x:Reference Root}}" />
+
+        <BoxView x:Name="Separator"
+                 HeightRequest="1"
+                 BackgroundColor="{DynamicResource BorderColor}"
+                 VerticalOptions="End"
+                 IsVisible="{Binding ShowSeparator, Source={x:Reference Root}}" />
+
+        <StackLayout x:Name="ContentContainerInternal"
+                     Spacing="{StaticResource SpacingSm}"
+                     Margin="0,0,0,0"
+                     IsVisible="{Binding HasCustomContent, Source={x:Reference Root}}">
+            <!-- Custom content goes here -->
+        </StackLayout>
+    </Grid>
+</Border>

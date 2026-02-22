@@ -21,10 +21,17 @@ public partial class SettingsPage : ContentPage, IDisposable
         _logger.LogDebug("SettingsPage created");
     }
 
-    protected override void OnAppearing()
+    protected override async void OnAppearing()
     {
         base.OnAppearing();
         _logger.LogDebug("SettingsPage appearing");
+
+        // Fade-in animation
+        if (MainGrid != null)
+        {
+            MainGrid.Opacity = 0;
+            await MainGrid.FadeTo(1, 500, Easing.CubicInOut);
+        }
     }
 
     protected override void OnDisappearing()

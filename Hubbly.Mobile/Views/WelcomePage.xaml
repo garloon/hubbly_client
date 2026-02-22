@@ -1,94 +1,105 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodels="clr-namespace:Hubbly.Mobile.ViewModels"
+             xmlns:components="clr-namespace:Hubbly.Mobile.Components"
              x:Class="Hubbly.Mobile.Views.WelcomePage"
+             x:DataType="viewmodels:WelcomeViewModel"
              Title="Welcome to Hubbly"
-             BackgroundColor="#F8FAFC">
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
 
     <Grid>
         <!-- Фоновый градиент -->
         <BoxView>
             <BoxView.Background>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                    <GradientStop Color="#667EEA" Offset="0.0"/>
-                    <GradientStop Color="#764BA2" Offset="1.0"/>
+                    <GradientStop Color="{DynamicResource PrimaryColor}" Offset="0.0"/>
+                    <GradientStop Color="{DynamicResource SecondaryColor}" Offset="1.0"/>
                 </LinearGradientBrush>
             </BoxView.Background>
         </BoxView>
 
         <!-- Основной контент -->
         <ScrollView>
-            <VerticalStackLayout Spacing="30" Padding="30" VerticalOptions="Center">
+            <Grid x:Name="MainGrid" Padding="{StaticResource SpacingMd}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
                 <!-- Логотип и заголовок -->
-                <VerticalStackLayout Spacing="20" HorizontalOptions="Center">
-                    <!-- Иконка приложения -->
-                    <Frame Padding="20"
-                           BackgroundColor="White"
-                           HorizontalOptions="Center"
-                           HasShadow="True">
-                        <Label Text="👋" 
-                               FontSize="48"
-                               HorizontalOptions="Center"/>
-                    </Frame>
+                <VerticalStackLayout Grid.Row="0"
+                                     Spacing="{StaticResource SpacingMd}"
+                                     HorizontalOptions="Center"
+                                     Margin="0,32,0,0">
+
+                    <!-- Иконка приложения (using Card component) -->
+                    <components:Card ShowTitle="False"
+                                     ShowSeparator="False"
+                                     HorizontalOptions="Center"
+                                     BackgroundColor="White"
+                                     Padding="{StaticResource SpacingLg}"
+                                     Margin="{StaticResource SpacingSm}">
+                        <Label Text="👋"
+                               FontSize="64"
+                               HorizontalOptions="Center" />
+                    </components:Card>
 
                     <!-- Заголовок -->
-                    <VerticalStackLayout Spacing="8" HorizontalOptions="Center">
+                    <VerticalStackLayout Spacing="{StaticResource SpacingXs}"
+                                         HorizontalOptions="Center">
                         <Label Text="Добро пожаловать в"
                                FontSize="18"
                                TextColor="White"
                                HorizontalOptions="Center"
-                               Opacity="0.9"/>
+                               Opacity="0.9" />
 
                         <Label Text="HUBBLY"
                                FontSize="42"
                                FontAttributes="Bold"
                                TextColor="White"
-                               HorizontalOptions="Center"/>
+                               HorizontalOptions="Center" />
 
                         <Label Text="Социальный хаб"
                                FontSize="24"
                                TextColor="White"
                                HorizontalOptions="Center"
-                               Opacity="0.9"/>
+                               Opacity="0.9" />
                     </VerticalStackLayout>
                 </VerticalStackLayout>
 
                 <!-- Описание -->
-                <Frame Padding="20"
-                       BackgroundColor="#4F46E5"
-                       HasShadow="True">
-                    <VerticalStackLayout Spacing="12">
+                <components:Card Grid.Row="1"
+                                 ShowTitle="False"
+                                 ShowSeparator="False"
+                                 Margin="{StaticResource SpacingMd}"
+                                 Padding="{StaticResource SpacingMd}">
+                    <VerticalStackLayout Spacing="{StaticResource SpacingSm}">
                         <Label Text="🌟 Общайтесь в реальном времени"
                                FontSize="16"
                                FontAttributes="Bold"
-                               TextColor="White"/>
+                               TextColor="{DynamicResource TextColor}" />
 
                         <Label Text="Присоединяйтесь к беседам, знакомьтесь и выражайте себя с помощью 3D-аватаров!"
                                FontSize="14"
-                               TextColor="White"
-                               Opacity="0.9"/>
+                               TextColor="{DynamicResource SecondaryTextColor}"
+                               LineBreakMode="WordWrap" />
                     </VerticalStackLayout>
-                </Frame>
+                </components:Card>
 
                 <!-- Кнопка входа -->
-                <VerticalStackLayout Spacing="15">
+                <VerticalStackLayout Grid.Row="2"
+                                     Spacing="{StaticResource SpacingSm}"
+                                     Margin="{StaticResource SpacingMd}">
                     <Button Text="Войти как гость"
                             Command="{Binding EnterAsGuestCommand}"
-                            HeightRequest="60"
+                            HeightRequest="56"
                             FontSize="18"
                             FontAttributes="Bold"
-                            BackgroundColor="#4F46E5"
-                            TextColor="White">
-                        <Button.Triggers>
-                            <DataTrigger TargetType="Button" 
-                                         Binding="{Binding IsBusy}" 
-                                         Value="True">
-                                <Setter Property="IsEnabled" Value="False"/>
-                                <Setter Property="Opacity" Value="0.7"/>
-                            </DataTrigger>
-                        </Button.Triggers>
-                    </Button>
+                            Style="{StaticResource PrimaryButtonStyle}" />
 
                     <!-- Информация о гостевом режиме -->
                     <Label Text="Никакой регистрации • Ваш гостевой ID создастся автоматически"
@@ -96,56 +107,64 @@
                            TextColor="White"
                            Opacity="0.8"
                            HorizontalOptions="Center"
-                           HorizontalTextAlignment="Center"/>
+                           HorizontalTextAlignment="Center" />
                 </VerticalStackLayout>
 
                 <!-- Индикатор загрузки -->
-                <VerticalStackLayout IsVisible="{Binding IsBusy}" 
-                                     Spacing="10"
-                                     HorizontalOptions="Center">
-                    <ActivityIndicator IsRunning="True"
-                                      Color="White"
-                                      WidthRequest="40"
-                                      HeightRequest="40"/>
+                <Grid Grid.Row="3"
+                      IsVisible="{Binding IsBusy}"
+                      Margin="{StaticResource SpacingMd}">
+                    <VerticalStackLayout Spacing="{StaticResource SpacingSm}"
+                                         HorizontalOptions="Center">
+                        <ActivityIndicator IsRunning="True"
+                                          Color="White"
+                                          WidthRequest="40"
+                                          HeightRequest="40" />
 
-                    <Label Text="Creating your space..."
-                           FontSize="14"
-                           TextColor="White"
-                           Opacity="0.9"/>
-                </VerticalStackLayout>
+                        <Label Text="Creating your space..."
+                               FontSize="14"
+                               TextColor="White"
+                               Opacity="0.9" />
+                    </VerticalStackLayout>
+                </Grid>
 
                 <!-- Футер -->
-                <VerticalStackLayout Spacing="5" HorizontalOptions="Center">
+                <VerticalStackLayout Grid.Row="4"
+                                     Spacing="{StaticResource SpacingXs}"
+                                     HorizontalOptions="Center"
+                                     Margin="0,24,0,16">
                     <Label Text="Продолжая, вы соглашаетесь с нашими"
                            FontSize="12"
                            TextColor="White"
-                           Opacity="0.7"/>
+                           Opacity="0.7" />
 
-                    <HorizontalStackLayout Spacing="5" HorizontalOptions="Center">
-                        <Label Text="Условиями использования" 
+                    <HorizontalStackLayout Spacing="{StaticResource SpacingXs}"
+                                           HorizontalOptions="Center">
+                        <Label Text="Условиями использования"
                                FontSize="12"
                                TextColor="#A5B4FC">
                             <Label.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnTermsTapped"/>
+                                <TapGestureRecognizer Command="{Binding OpenTermsCommand}" />
                             </Label.GestureRecognizers>
                         </Label>
 
                         <Label Text="•"
                                FontSize="12"
                                TextColor="White"
-                               Opacity="0.7"/>
+                               Opacity="0.7" />
 
-                        <Label Text="Конфиденциальностью" 
+                        <Label Text="Конфиденциальностью"
                                FontSize="12"
                                TextColor="#A5B4FC">
                             <Label.GestureRecognizers>
-                                <TapGestureRecognizer Tapped="OnPrivacyTapped"/>
+                                <TapGestureRecognizer Command="{Binding OpenPrivacyCommand}" />
                             </Label.GestureRecognizers>
                         </Label>
                     </HorizontalStackLayout>
                 </VerticalStackLayout>
 
-            </VerticalStackLayout>
+            </Grid>
         </ScrollView>
     </Grid>
+
 </ContentPage>

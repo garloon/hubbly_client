@@ -4,7 +4,7 @@ namespace Hubbly.Mobile.Converters;
 
 public class ContinueButtonColorConverter : IValueConverter
 {
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is bool isEnabled)
         {
@@ -15,7 +15,7 @@ public class ContinueButtonColorConverter : IValueConverter
         return Color.FromArgb("#94A3B8");
     }
 
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         throw new NotImplementedException();
     }

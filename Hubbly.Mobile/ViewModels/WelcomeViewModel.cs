@@ -141,6 +141,38 @@ public partial class WelcomeViewModel : ObservableObject, IDisposable
         StatusMessage = string.Empty;
     }
 
+    [RelayCommand]
+    private async Task OpenTerms()
+    {
+        try
+        {
+            _logger.LogDebug("Opening terms");
+            await Application.Current.MainPage.DisplayAlert("Terms of Service",
+                "Welcome to Hubbly! By using our service, you agree to be respectful to other users and follow community guidelines. We're building a positive social space together!",
+                "Got it");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error showing terms");
+        }
+    }
+
+    [RelayCommand]
+    private async Task OpenPrivacy()
+    {
+        try
+        {
+            _logger.LogDebug("Opening privacy policy");
+            await Application.Current.MainPage.DisplayAlert("Privacy Policy",
+                "Your privacy matters. We only store your nickname and avatar preferences. Chat messages are ephemeral and not permanently stored. You can leave anytime!",
+                "Understood");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error showing privacy policy");
+        }
+    }
+
     #endregion
 
     #region Lifecycle

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:converters="clr-namespace:Hubbly.Mobile.Converters"
+             xmlns:shapes="clr-namespace:Microsoft.Maui.Controls.Shapes;assembly=Microsoft.Maui.Controls"
+             x:Class="Hubbly.Mobile.Components.AvatarView"
+             x:Name="Root"
+             HeightRequest="50"
+             WidthRequest="50">
+
+    <ContentView.Resources>
+        <ResourceDictionary>
+            <converters:ScreenSizeToValueConverter x:Key="ScreenSizeConverter" />
+        </ResourceDictionary>
+    </ContentView.Resources>
+
+    <Grid>
+        <!-- Avatar Background -->
+        <Border x:Name="AvatarFrame"
+                BackgroundColor="{Binding AvatarColor, Source={x:Reference Root}}"
+                Stroke="Transparent"
+                StrokeThickness="0"
+                WidthRequest="{Binding Size, Source={x:Reference Root}, Converter={StaticResource ScreenSizeConverter}, ConverterParameter='32|40|50|64'}"
+                HeightRequest="{Binding Size, Source={x:Reference Root}, Converter={StaticResource ScreenSizeConverter}, ConverterParameter='32|40|50|64'}"
+                HorizontalOptions="Center"
+                VerticalOptions="Center">
+            <Border.StrokeShape>
+                <shapes:RoundRectangle x:Name="AvatarRoundRectangle" CornerRadius="20" />
+            </Border.StrokeShape>
+    
+            <Border.Content>
+                <!-- Initials or Image -->
+                <Grid>
+                    <Label x:Name="InitialsLabel"
+                           Text="{Binding Nickname, Source={x:Reference Root}, Converter={StaticResource InitialsConverter}}"
+                           FontAttributes="Bold"
+                           TextColor="White"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" />
+    
+                    <!-- Optional Image (for future use with real avatars) -->
+                    <Image x:Name="AvatarImage"
+                           Source="{Binding AvatarImageSource, Source={x:Reference Root}}"
+                           Aspect="AspectFill" />
+                </Grid>
+            </Border.Content>
+        </Border>
+
+        <!-- Online Status Indicator -->
+        <Ellipse x:Name="OnlineIndicator"
+                 WidthRequest="{Binding Size, Source={x:Reference Root}, Converter={StaticResource ScreenSizeConverter}, ConverterParameter='8|10|12|14'}"
+                 HeightRequest="{Binding Size, Source={x:Reference Root}, Converter={StaticResource ScreenSizeConverter}, ConverterParameter='8|10|12|14'}"
+                 Fill="#10B981"
+                 HorizontalOptions="End"
+                 VerticalOptions="End"
+                 Margin="0,0,2,2"
+                 IsVisible="{Binding ShowOnlineStatus, Source={x:Reference Root}}" />
+
+        <!-- Offline indicator (gray) -->
+        <Ellipse x:Name="OfflineIndicator"
+                 WidthRequest="{Binding Size, Source={x:Reference Root}, Converter={StaticResource ScreenSizeConverter}, ConverterParameter='8|10|12|14'}"
+                 HeightRequest="{Binding Size, Source={x:Reference Root}, Converter={StaticResource ScreenSizeConverter}, ConverterParameter='8|10|12|14'}"
+                 Fill="#94A3B8"
+                 HorizontalOptions="End"
+                 VerticalOptions="End"
+                 Margin="0,0,2,2"
+                 IsVisible="{Binding ShowOnlineStatus, Source={x:Reference Root}, Converter={StaticResource InverseBoolConverter}}" />
+    </Grid>
+</ContentView>

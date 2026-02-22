@@ -5,6 +5,12 @@
              x:Class="Hubbly.Mobile.App">
     <Application.Resources>
         <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <!-- Дизайн-система -->
+                <ResourceDictionary Source="Resources/Styles/Colors.xaml" />
+                <ResourceDictionary Source="Resources/Styles/Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
             <!-- Конвертеры -->
             <converters:AvatarColorConverter x:Key="AvatarColorConverter" />
             <converters:InitialsConverter x:Key="InitialsConverter" />
@@ -15,8 +21,11 @@
             <converters:GenderTextColorConverter x:Key="GenderTextColorConverter" />
             <converters:ContinueButtonColorConverter x:Key="ContinueButtonColorConverter" />
             <converters:StringNotEmptyConverter x:Key="StringNotEmptyConverter" />
+           <converters:OrientationToValueConverter x:Key="OrientationToValueConverter" />
+           <converters:IsLandscapeConverter x:Key="IsLandscapeConverter" />
+           <converters:ScreenSizeToValueConverter x:Key="ScreenSizeToValueConverter" />
 
-            <!-- Стили -->
+            <!-- Стили по умолчанию -->
             <Style TargetType="Frame">
                 <Setter Property="HasShadow" Value="True"/>
             </Style>

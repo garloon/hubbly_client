@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:viewmodels="clr-namespace:Hubbly.Mobile.ViewModels"
              xmlns:converters="clr-namespace:Hubbly.Mobile.Converters"
+             xmlns:components="clr-namespace:Hubbly.Mobile.Components"
              x:Class="Hubbly.Mobile.Views.SettingsPage"
              x:DataType="viewmodels:SettingsViewModel"
              Title="{Binding SettingsTitle}"
@@ -15,71 +16,30 @@
         </ResourceDictionary>
     </ContentPage.Resources>
 
-    <Grid RowDefinitions="Auto,*,Auto" Padding="20">
+    <Grid x:Name="MainGrid" RowDefinitions="Auto,*" Padding="{StaticResource SpacingMd}">
 
-        <!-- Header with Hamburger -->
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Padding="0,0,0,10">
-            <!-- Hamburger Menu Button (left) -->
-            <Frame Grid.Column="0"
-                   Padding="0"
-                   BackgroundColor="Transparent"
-                   WidthRequest="40"
-                   HeightRequest="40"
-                   CornerRadius="20"
-                   HasShadow="False"
-                   IsClippedToBounds="True">
-                <Button Text="☰"
-                        FontSize="20"
-                        TextColor="{DynamicResource TextColor}"
-                        BackgroundColor="Transparent"
-                        Command="{Binding ToggleFlyoutCommand}"
-                        BorderWidth="0" />
-            </Frame>
-
-            <!-- Title (center) -->
-            <Label Grid.Column="1"
-                   Text="{Binding SettingsTitle}"
-                   FontSize="24"
-                   FontAttributes="Bold"
-                   TextColor="{DynamicResource TextColor}"
-                   HorizontalOptions="Center"
-                   VerticalOptions="Center" />
-
-            <!-- Back to Chat Button (right) -->
-            <Frame Grid.Column="2"
-                   Padding="0"
-                   BackgroundColor="Transparent"
-                   WidthRequest="40"
-                   HeightRequest="40"
-                   CornerRadius="20"
-                   HasShadow="False"
-                   IsClippedToBounds="True">
-                <Button Text="←"
-                        FontSize="20"
-                        TextColor="{DynamicResource TextColor}"
-                        BackgroundColor="Transparent"
-                        Command="{Binding GoBackCommand}"
-                        BorderWidth="0" />
-            </Frame>
-        </Grid>
+        <!-- PageHeader Component -->
+        <components:PageHeader Grid.Row="0"
+                               Title="{Binding SettingsTitle}"
+                               ShowMenuButton="False"
+                               ToggleFlyoutCommand="{Binding ToggleFlyoutCommand}"
+                               ShowActionButton="True"
+                               ActionButtonText="←"
+                               ActionCommand="{Binding GoBackCommand}"
+                               Margin="{StaticResource SpacingSm}" />
 
         <!-- Settings Content -->
         <ScrollView Grid.Row="1" VerticalScrollBarVisibility="Never">
-            <VerticalStackLayout Spacing="25" Padding="0,20,0,0">
+            <VerticalStackLayout Spacing="{StaticResource SpacingMd}">
 
                 <!-- Theme Section -->
-                <Frame BackgroundColor="{DynamicResource CardBackgroundColor}"
-                       BorderColor="{DynamicResource BorderColor}"
-                       CornerRadius="12"
-                       Padding="15"
-                       HasShadow="False">
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="{Binding ThemeLabel}"
-                               FontSize="18"
-                               FontAttributes="Bold"
-                               TextColor="{DynamicResource TextColor}" />
+                <components:Card Title="{Binding ThemeLabel}"
+                                 ShowTitle="True"
+                                 ShowSeparator="False"
+                                 Margin="{StaticResource SpacingSm}">
+                    <VerticalStackLayout Spacing="{StaticResource SpacingMd}">
 
-                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="15">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource SpacingMd}">
                             <!-- Theme Label -->
                             <Label Grid.Column="0"
                                    Text="{Binding IsDarkTheme, Converter={StaticResource BooleanToThemeNameConverter}}"
@@ -102,7 +62,7 @@
                                        FontSize="14"
                                        TextColor="{DynamicResource SecondaryTextColor}"
                                        VerticalOptions="Center"
-                                       Margin="0,0,10,0" />
+                                       Margin="8,0,16,0" />
 
                                 <!-- Switch -->
                                 <Switch Grid.Column="1"
@@ -116,25 +76,21 @@
                                        FontSize="14"
                                        TextColor="{DynamicResource SecondaryTextColor}"
                                        VerticalOptions="Center"
-                                       Margin="10,0,0,0" />
+                                       Margin="16,0,0,0" />
                             </Grid>
                         </Grid>
+
                     </VerticalStackLayout>
-                </Frame>
+                </components:Card>
 
                 <!-- Language Section -->
-                <Frame BackgroundColor="{DynamicResource CardBackgroundColor}"
-                       BorderColor="{DynamicResource BorderColor}"
-                       CornerRadius="12"
-                       Padding="15"
-                       HasShadow="False">
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="{Binding LanguageLabel}"
-                               FontSize="18"
-                               FontAttributes="Bold"
-                               TextColor="{DynamicResource TextColor}" />
+                <components:Card Title="{Binding LanguageLabel}"
+                                 ShowTitle="True"
+                                 ShowSeparator="False"
+                                 Margin="{StaticResource SpacingSm}">
+                    <VerticalStackLayout Spacing="{StaticResource SpacingMd}">
 
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="15">
+                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource SpacingMd}">
                             <!-- Current Language -->
                             <Label Grid.Column="0"
                                    Text="{Binding CurrentLanguage, Converter={StaticResource BooleanToLanguageNameConverter}}"
@@ -144,42 +100,30 @@
 
                             <!-- Language Buttons -->
                             <HorizontalStackLayout Grid.Column="1"
-                                                   Spacing="10">
+                                                   Spacing="{StaticResource SpacingSm}">
                                 <Button Text="{Binding Russian}"
                                         Command="{Binding SetRussianCommand}"
-                                        BackgroundColor="{DynamicResource PrimaryColor}"
-                                        TextColor="White"
-                                        CornerRadius="8"
-                                        Padding="20,10"
+                                        Style="{StaticResource PrimaryButtonStyle}"
                                         FontSize="14"
-                                        BorderWidth="0"
                                         IsEnabled="{Binding IsRussian}" />
 
                                 <Button Text="{Binding English}"
                                         Command="{Binding SetEnglishCommand}"
-                                        BackgroundColor="{DynamicResource PrimaryColor}"
-                                        TextColor="White"
-                                        CornerRadius="8"
-                                        Padding="20,10"
+                                        Style="{StaticResource PrimaryButtonStyle}"
                                         FontSize="14"
-                                        BorderWidth="0"
                                         IsEnabled="{Binding IsEnglish}" />
                             </HorizontalStackLayout>
                         </Grid>
-                    </VerticalStackLayout>
-                </Frame>
 
-                <!-- App Info -->
-                <Frame BackgroundColor="{DynamicResource CardBackgroundColor}"
-                       BorderColor="{DynamicResource BorderColor}"
-                       CornerRadius="12"
-                       Padding="15"
-                       HasShadow="False">
-                    <VerticalStackLayout Spacing="8">
-                        <Label Text="{Binding AboutAppName}"
-                               FontSize="16"
-                               FontAttributes="Bold"
-                               TextColor="{DynamicResource TextColor}" />
+                    </VerticalStackLayout>
+                </components:Card>
+
+                <!-- App Info Section -->
+                <components:Card Title="{Binding AboutAppName}"
+                                 ShowTitle="True"
+                                 ShowSeparator="False"
+                                 Margin="{StaticResource SpacingSm}">
+                    <VerticalStackLayout Spacing="{StaticResource SpacingMd}">
 
                         <Label Text="{Binding VersionText}"
                                FontSize="14"
@@ -189,8 +133,9 @@
                                FontSize="14"
                                TextColor="{DynamicResource SecondaryTextColor}"
                                LineBreakMode="WordWrap" />
+
                     </VerticalStackLayout>
-                </Frame>
+                </components:Card>
 
             </VerticalStackLayout>
         </ScrollView>
@@ -199,7 +144,7 @@
         <VerticalStackLayout Grid.Row="2"
                              Spacing="5"
                              HorizontalOptions="Center"
-                             Padding="0,10,0,0">
+                             Padding="{StaticResource SpacingMd}">
             <Label Text="© 2025 Hubbly"
                    FontSize="12"
                    TextColor="{DynamicResource SecondaryTextColor}"

@@ -25,12 +25,19 @@ public partial class AvatarSelectionPage : ContentPage, IDisposable
 
     #region Lifecycle
 
-    protected override void OnAppearing()
+    protected override async void OnAppearing()
     {
         base.OnAppearing();
 
         _logger.LogDebug("AvatarSelectionPage appearing");
         _viewModel.OnAppearing();
+
+        // Fade-in animation
+        if (MainGrid != null)
+        {
+            MainGrid.Opacity = 0;
+            await MainGrid.FadeTo(1, 500, Easing.CubicInOut);
+        }
     }
 
     protected override void OnDisappearing()
@@ -51,7 +58,7 @@ public partial class AvatarSelectionPage : ContentPage, IDisposable
 
         _logger.LogInformation("AvatarSelectionPage disposing...");
 
-        // Отписываемся от событий если есть
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
 
         _disposed = true;
         GC.SuppressFinalize(this);

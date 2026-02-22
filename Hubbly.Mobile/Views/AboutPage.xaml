@@ -2,72 +2,35 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:viewmodels="clr-namespace:Hubbly.Mobile.ViewModels"
+             xmlns:components="clr-namespace:Hubbly.Mobile.Components"
              x:Class="Hubbly.Mobile.Views.AboutPage"
              x:DataType="viewmodels:AboutViewModel"
              Title="{Binding AboutTitle}"
              BackgroundColor="{DynamicResource PageBackgroundColor}">
 
-    <Grid RowDefinitions="Auto,*,Auto" Padding="20">
+    <Grid x:Name="MainGrid" RowDefinitions="Auto,*" Padding="{StaticResource SpacingMd}">
 
-        <!-- Header with Hamburger -->
-        <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Padding="0,0,0,10">
-            <!-- Hamburger Menu Button (left) -->
-            <Frame Grid.Column="0"
-                   Padding="0"
-                   BackgroundColor="Transparent"
-                   WidthRequest="40"
-                   HeightRequest="40"
-                   CornerRadius="20"
-                   HasShadow="False"
-                   IsClippedToBounds="True">
-                <Button Text="☰"
-                        FontSize="20"
-                        TextColor="{DynamicResource TextColor}"
-                        BackgroundColor="Transparent"
-                        Command="{Binding ToggleFlyoutCommand}"
-                        BorderWidth="0" />
-            </Frame>
-
-            <!-- Title (center) -->
-            <Label Grid.Column="1"
-                   Text="{Binding AboutTitle}"
-                   FontSize="24"
-                   FontAttributes="Bold"
-                   TextColor="{DynamicResource TextColor}"
-                   HorizontalOptions="Center"
-                   VerticalOptions="Center" />
-
-            <!-- Back to Chat Button (right) -->
-            <Frame Grid.Column="2"
-                   Padding="0"
-                   BackgroundColor="Transparent"
-                   WidthRequest="40"
-                   HeightRequest="40"
-                   CornerRadius="20"
-                   HasShadow="False"
-                   IsClippedToBounds="True">
-                <Button Text="←"
-                        FontSize="20"
-                        TextColor="{DynamicResource TextColor}"
-                        BackgroundColor="Transparent"
-                        Command="{Binding GoBackCommand}"
-                        BorderWidth="0" />
-            </Frame>
-        </Grid>
+        <!-- PageHeader Component -->
+        <components:PageHeader Grid.Row="0"
+                               Title="{Binding AboutTitle}"
+                               ShowMenuButton="True"
+                               ToggleFlyoutCommand="{Binding ToggleFlyoutCommand}"
+                               ShowActionButton="True"
+                               ActionButtonText="←"
+                               ActionCommand="{Binding GoBackCommand}"
+                               Margin="{StaticResource SpacingSm}" />
 
         <!-- Content -->
         <ScrollView Grid.Row="1" VerticalScrollBarVisibility="Never">
-            <VerticalStackLayout Spacing="20" Padding="0,20,0,0">
+            <VerticalStackLayout Spacing="{StaticResource SpacingMd}">
 
                 <!-- App Icon & Name -->
-                <Frame BackgroundColor="{DynamicResource CardBackgroundColor}"
-                       BorderColor="{DynamicResource BorderColor}"
-                       CornerRadius="12"
-                       Padding="20"
-                       HasShadow="False"
-                       HorizontalOptions="Center"
-                       WidthRequest="200">
-                    <VerticalStackLayout Spacing="10" HorizontalOptions="Center">
+                <components:Card ShowTitle="False"
+                                 ShowSeparator="False"
+                                 Margin="{StaticResource SpacingSm}"
+                                 HorizontalOptions="Center"
+                                 WidthRequest="250">
+                    <VerticalStackLayout Spacing="{StaticResource SpacingMd}" HorizontalOptions="Center">
                         <Image Source="appicon.svg"
                                WidthRequest="80"
                                HeightRequest="80"
@@ -82,63 +45,49 @@
                                TextColor="{DynamicResource SecondaryTextColor}"
                                HorizontalTextAlignment="Center" />
                     </VerticalStackLayout>
-                </Frame>
+                </components:Card>
 
                 <!-- Description -->
-                <Frame BackgroundColor="{DynamicResource CardBackgroundColor}"
-                       BorderColor="{DynamicResource BorderColor}"
-                       CornerRadius="12"
-                       Padding="15"
-                       HasShadow="False">
-                    <VerticalStackLayout Spacing="10">
-                        <Label Text="{Binding AboutDescription}"
-                               FontSize="14"
-                               TextColor="{DynamicResource SecondaryTextColor}"
-                               LineBreakMode="WordWrap"
-                               HorizontalTextAlignment="Center" />
-                    </VerticalStackLayout>
-                </Frame>
+                <components:Card Title="{Binding AboutDescription}"
+                                 ShowTitle="True"
+                                 ShowSeparator="False"
+                                 Margin="{StaticResource SpacingSm}">
+                    <Label Text="{Binding AboutDescription}"
+                           FontSize="14"
+                           TextColor="{DynamicResource SecondaryTextColor}"
+                           LineBreakMode="WordWrap" />
+                </components:Card>
 
                 <!-- Links -->
-                <Frame BackgroundColor="{DynamicResource CardBackgroundColor}"
-                       BorderColor="{DynamicResource BorderColor}"
-                       CornerRadius="12"
-                       Padding="15"
-                       HasShadow="False">
-                    <VerticalStackLayout Spacing="15">
+                <components:Card Title="Links"
+                                 ShowTitle="True"
+                                 ShowSeparator="False"
+                                 Margin="8,0,16,0">
+                    <VerticalStackLayout Spacing="{StaticResource SpacingSm}">
 
                         <!-- Terms of Service -->
                         <Button Text="{Binding Terms}"
                                 Command="{Binding OpenTermsCommand}"
-                                BackgroundColor="Transparent"
-                                TextColor="{DynamicResource PrimaryColor}"
-                                BorderWidth="0"
-                                HorizontalOptions="Center"
-                                FontSize="14" />
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                FontSize="14"
+                                HorizontalOptions="Center" />
 
                         <!-- Privacy Policy -->
                         <Button Text="{Binding Privacy}"
                                 Command="{Binding OpenPrivacyCommand}"
-                                BackgroundColor="Transparent"
-                                TextColor="{DynamicResource PrimaryColor}"
-                                BorderWidth="0"
-                                HorizontalOptions="Center"
-                                FontSize="14" />
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                FontSize="14"
+                                HorizontalOptions="Center" />
 
                     </VerticalStackLayout>
-                </Frame>
+                </components:Card>
 
                 <!-- Build Info -->
-                <Frame BackgroundColor="{DynamicResource CardBackgroundColor}"
-                       BorderColor="{DynamicResource BorderColor}"
-                       CornerRadius="12"
-                       Padding="15"
-                       HasShadow="False">
-                    <VerticalStackLayout Spacing="5">
-                        <Label Text="Build Information"
-                               FontSize="14"
-                               FontAttributes="Bold"
-                               TextColor="{DynamicResource TextColor}" />
+                <components:Card Title="Build Info"
+                                 ShowTitle="True"
+                                 ShowSeparator="False"
+                                 Margin="8,0,16,0">
+                    <VerticalStackLayout Spacing="{StaticResource SpacingXs}">
                         <Label Text="Framework: .NET MAUI"
                                FontSize="12"
                                TextColor="{DynamicResource SecondaryTextColor}" />
@@ -149,7 +98,7 @@
                                FontSize="12"
                                TextColor="{DynamicResource SecondaryTextColor}" />
                     </VerticalStackLayout>
-                </Frame>
+                </components:Card>
 
             </VerticalStackLayout>
         </ScrollView>
@@ -158,7 +107,7 @@
         <VerticalStackLayout Grid.Row="2"
                              Spacing="5"
                              HorizontalOptions="Center"
-                             Padding="0,10,0,0">
+                             Padding="{StaticResource SpacingMd}">
             <Label Text="Made with ❤️ by Hubbly Team"
                    FontSize="12"
                    TextColor="{DynamicResource SecondaryTextColor}"

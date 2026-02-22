@@ -104,9 +104,6 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         _typingDebouncer = new Debouncer(TimeSpan.FromSeconds(1), SendTypingIndicatorInternal);
         _presenceDebouncer = new Debouncer(TimeSpan.FromMilliseconds(500), UpdatePresenceInternal);
 
-        // Subscribe to collection changes for auto-scrolling
-        _messages.CollectionChanged += OnMessagesCollectionChanged;
-
         // Subscribe to SignalR events
         InitializeSignalREvents();
 
@@ -869,8 +866,8 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         {
             _logger.LogInformation("Adding self to 3D scene");
 
-            // Wait for scene readiness with timeout (15 seconds for mobile)
-            var sceneReady = await WaitForSceneWithTimeout(15000);
+            // Wait for scene readiness with timeout (30 seconds for mobile)
+            var sceneReady = await WaitForSceneWithTimeout(30000);
 
             if (!sceneReady)
             {
@@ -1027,15 +1024,6 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         // TODO: Implement presence update
     }
 
-    private void OnMessagesCollectionChanged(object sender, NotifyCollectionChangedEventArgs e)
-    {
-        if (e.Action == NotifyCollectionChangedAction.Add)
-        {
-            // Trigger auto-scroll
-            _presenceDebouncer.Invoke();
-        }
-    }
-
     public void Disable3D()
     {
         if (_is3DEnabled)
@@ -1121,7 +1109,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     {
         _logger.LogDebug("ChatRoomPage disappearing");
         
-        if (IsConnected)
+        if (IsConnected && !_isLeaving)
         {
             await DisconnectFromChat();
         }
@@ -1187,8 +1175,6 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
 
         _typingDebouncer.Dispose();
         _presenceDebouncer.Dispose();
-
-        _messages.CollectionChanged -= OnMessagesCollectionChanged;
 
         UnsubscribeSignalREvents();
 

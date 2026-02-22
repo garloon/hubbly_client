@@ -4,7 +4,7 @@ namespace Hubbly.Mobile.Converters;
 
 public class InitialsConverter : IValueConverter
 {
-    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         if (value is string nickname && !string.IsNullOrEmpty(nickname))
         {
@@ -18,7 +18,7 @@ public class InitialsConverter : IValueConverter
         return "??";
     }
 
-    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
         throw new NotImplementedException();
     }

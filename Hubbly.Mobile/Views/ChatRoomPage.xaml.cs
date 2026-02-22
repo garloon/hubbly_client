@@ -1,6 +1,9 @@
 ﻿using Hubbly.Mobile.Services;
 using Hubbly.Mobile.ViewModels;
 using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
+using Hubbly.Mobile.Models;
+using System.Collections.ObjectModel;
 
 namespace Hubbly.Mobile.Views;
 
@@ -38,12 +41,18 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         // Initialize WebView (subscribe to events) before setting source
         InitializeWebView();
 
+        // Initialize CollectionView for auto-scrolling
+        InitializeCollectionView();
+
         // Set WebView source dynamically based on server URL from Preferences
         var serverUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
         AvatarWebView.Source = $"{serverUrl.TrimEnd('/')}/three_scene.html";
         _logger.LogInformation("WebView source set to: {Source}", AvatarWebView.Source);
 
         _logger.LogInformation("ChatRoomPage created");
+
+        // Subscribe to orientation changes for adaptive layout
+        DeviceDisplay.MainDisplayInfoChanged += OnMainDisplayInfoChanged;
     }
 
     #region Initialization
@@ -80,6 +89,95 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         }
     }
 
+    private void InitializeCollectionView()
+    {
+        try
+        {
+            if (_viewModel?.Messages != null && !_disposed)
+            {
+                _viewModel.Messages.CollectionChanged += OnMessagesCollectionChanged;
+                _logger.LogInformation("CollectionView initialization complete");
+            }
+            else
+            {
+                _logger.LogWarning("Cannot initialize CollectionView: ViewModel or Messages is null, or page is disposed");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error initializing CollectionView");
+        }
+    }
+
+   private void OnMessagesCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+   {
+       const int maxAttempts = 3;
+
+       try
+       {
+           // Don't process if page is disposed or view is null
+           if (_disposed || MessagesCollectionView == null || _viewModel == null)
+               return;
+
+           if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add && e.NewItems?.Count > 0)
+           {
+               MainThread.BeginInvokeOnMainThread(async () =>
+               {
+                   try
+                   {
+                       if (_disposed || MessagesCollectionView == null || _viewModel?.Messages == null)
+                           return;
+
+                       var messages = _viewModel.Messages;
+                       if (messages.Count == 0)
+                           return;
+
+                       // Get the target index
+                       int targetIndex = messages.Count - 1;
+
+                       // Wait for UI to process the collection change
+                       await Task.Delay(100);
+
+                       // Re-check after delay
+                       if (_disposed || MessagesCollectionView == null || _viewModel?.Messages == null)
+                           return;
+
+                       // Verify the index is still valid
+                       if (targetIndex < 0 || targetIndex >= _viewModel.Messages.Count)
+                           return;
+
+                       // Try scrolling with retry logic
+                       int attempts = 0;
+
+                       while (attempts < maxAttempts)
+                       {
+                           try
+                           {
+                               MessagesCollectionView.ScrollTo(targetIndex, ScrollToPosition.End);
+                               break; // Success, exit loop
+                           }
+                           catch (Exception ex) when (attempts < maxAttempts - 1)
+                           {
+                               attempts++;
+                               _logger.LogDebug(ex, "ScrollTo attempt {Attempt} failed, retrying...", attempts);
+                               await Task.Delay(100); // Wait before retry
+                           }
+                       }
+                   }
+                   catch (Exception ex)
+                   {
+                       _logger.LogDebug(ex, "ScrollTo failed after {Attempts} attempts", maxAttempts);
+                   }
+               });
+           }
+       }
+       catch (Exception ex)
+       {
+           // Log but don't throw - collection changed events should be safe
+           _logger.LogDebug(ex, "Error handling messages collection changed");
+       }
+   }
+
     private void OnWebViewNavigating(object sender, WebNavigatingEventArgs e)
     {
         try
@@ -101,10 +199,17 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         base.OnAppearing();
         _logger.LogDebug("ChatRoomPage appearing");
 
+        // Check if page is already disposed
+        if (_disposed)
+        {
+            _logger.LogWarning("ChatRoomPage appearing after disposed - ignoring");
+            return;
+        }
+
         try
         {
             // Re-initialize WebView source if it was reset in OnDisappearing
-            if (AvatarWebView.Source == null)
+            if (AvatarWebView != null && AvatarWebView.Source == null)
             {
                 _logger.LogInformation("Re-initializing WebView source after cache clear");
                 var serverUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
@@ -113,13 +218,20 @@ public partial class ChatRoomPage : ContentPage, IDisposable
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
             cts.CancelAfter(TimeSpan.FromSeconds(10));
-            
+
             await _viewModel.OnAppearing();
+
+            // Fade-in animation
+            if (MainGrid != null && !_disposed)
+            {
+                MainGrid.Opacity = 0;
+                await MainGrid.FadeTo(1, 500, Easing.CubicInOut);
+            }
 
             // Check server availability
             var isAvailable = await _authService.CheckServerHealthAsync();
 
-            if (!isAvailable)
+            if (!isAvailable && !_disposed)
             {
                 _logger.LogWarning("Server unavailable");
                 await ShowErrorAndGoBack("Chat server is not responding. Please try again later.");
@@ -128,13 +240,19 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         }
         catch (OperationCanceledException)
         {
-            _logger.LogWarning("Connection timeout");
-            await ShowErrorAndGoBack("Connection timeout. Please try again.");
+            if (!_disposed)
+            {
+                _logger.LogWarning("Connection timeout");
+                await ShowErrorAndGoBack("Connection timeout. Please try again.");
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in OnAppearing");
-            await ShowErrorAndGoBack("Failed to connect to chat server.");
+            if (!_disposed)
+            {
+                _logger.LogError(ex, "Error in OnAppearing");
+                await ShowErrorAndGoBack("Failed to connect to chat server.");
+            }
         }
     }
 
@@ -152,9 +270,8 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         // Cleanup (scene clearing, chat disconnection) is performed only in:
         // - DisposeAsync() when the page is permanently destroyed
         // - LogoutCommand when user explicitly logs out
-        
-        // We only cancel ongoing operations to prevent memory leaks
-        _cts.Cancel();
+
+        _cts.Cancel(); // Only cancel operations, preserve scene
 
         _logger.LogInformation("ChatRoomPage OnDisappearing: cancelled operations, scene preserved");
     }
@@ -167,22 +284,8 @@ public partial class ChatRoomPage : ContentPage, IDisposable
     {
         try
         {
-            _logger.LogInformation("WebView navigated to: {Url}, Result: {Result}", e.Url, e.Result);
-
-            MainThread.BeginInvokeOnMainThread(() =>
-            {
-                if (LoadingOverlay != null)
-                {
-                    LoadingOverlay.IsVisible = e.Result != WebNavigationResult.Success;
-                }
-            });
-
-            // Log additional details if navigation failed
-            if (e.Result != WebNavigationResult.Success)
-            {
-                _logger.LogWarning("WebView navigation failed with result: {Result}", e.Result);
-                // The scene error will be triggered by WebViewService through OnSceneError
-            }
+            // Handle WebView navigation completion if needed
+            _logger.LogDebug("WebView navigated to: {Url}", e.Url);
         }
         catch (Exception ex)
         {
@@ -194,12 +297,18 @@ public partial class ChatRoomPage : ContentPage, IDisposable
     {
         try
         {
-            _logger.LogInformation("Scene ready event: {Message}", message);
-            // Handle scene ready
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                if (!_disposed && LoadingOverlay != null)
+                {
+                    LoadingOverlay.IsVisible = false;
+                    _logger.LogInformation("3D scene ready: {Message}", message);
+                }
+            });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in OnSceneReady");
+            _logger.LogError(ex, "Error handling scene ready");
         }
     }
 
@@ -207,58 +316,143 @@ public partial class ChatRoomPage : ContentPage, IDisposable
     {
         try
         {
-            _logger.LogError("Scene error: {Error}", error);
-            // Handle scene error
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                if (!_disposed && LoadingOverlay != null)
+                {
+                    LoadingOverlay.IsVisible = false;
+                    _logger.LogError("3D scene error: {Error}", error);
+                }
+            });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in OnSceneError");
+            _logger.LogError(ex, "Error handling scene error");
         }
     }
 
     #endregion
 
-    #region UI Event Handlers
+    #region Orientation Handling
 
-    private async void OnMessageTextChanged(object sender, TextChangedEventArgs e)
+    private void OnMainDisplayInfoChanged(object sender, DisplayInfoChangedEventArgs e)
     {
-        // Debounce typing indicator
-        // Implementation...
+        try
+        {
+            var orientation = DeviceDisplay.Current.MainDisplayInfo.Orientation;
+            _logger.LogDebug("Orientation changed to: {Orientation}", orientation);
+
+            // Adjust layout based on orientation
+            AdjustLayoutForOrientation(orientation);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling orientation change");
+        }
     }
 
-    private async Task ShowErrorAndGoBack(string message)
+    private void AdjustLayoutForOrientation(DisplayOrientation orientation)
     {
-        // Show error and navigate back
+        try
+        {
+            var isLandscape = orientation == DisplayOrientation.Landscape;
+
+            // Adjust WebView and fallback UI proportions
+            // In portrait: 3D scene takes ~60% of screen
+            // In landscape: 3D scene takes ~70% of screen (more horizontal space)
+            if (isLandscape)
+            {
+                // Landscape: wider layout, adjust paddings and sizes
+                // The Grid with Auto,* will handle most of this automatically
+                _logger.LogDebug("Landscape layout applied");
+            }
+            else
+            {
+                // Portrait: taller layout
+                _logger.LogDebug("Portrait layout applied");
+            }
+
+            // Force layout update
+            InvalidateMeasure();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adjusting layout for orientation");
+        }
     }
 
     #endregion
 
-    #region IDisposable
+    #region Helpers
+
+    private async Task ShowErrorAndGoBack(string message)
+    {
+        try
+        {
+            await DisplayAlert("Error", message, "OK");
+            await _navigationService.GoBackAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error showing error message");
+        }
+    }
+
+    #endregion
+
+    #region Dispose
 
     public void Dispose()
     {
         if (_disposed) return;
 
-        _logger.LogDebug("ChatRoomPage disposing");
+        _logger.LogInformation("ChatRoomPage disposing...");
 
-        _cts.Cancel();
-        _cts.Dispose();
-
-        // Unsubscribe WebView events
-        if (AvatarWebView != null)
+        try
         {
-            AvatarWebView.Navigated -= OnWebViewNavigated;
-            AvatarWebView.Navigating -= OnWebViewNavigating;
+            // Mark as disposed first to prevent further event processing
+            _disposed = true;
+
+            // Unsubscribe from events
+            DeviceDisplay.MainDisplayInfoChanged -= OnMainDisplayInfoChanged;
+
+            if (AvatarWebView != null)
+            {
+                AvatarWebView.Navigated -= OnWebViewNavigated;
+                AvatarWebView.Navigating -= OnWebViewNavigating;
+            }
+
+            if (_webViewService != null)
+            {
+                _webViewService.OnSceneReady -= OnSceneReady;
+                _webViewService.OnSceneError -= OnSceneError;
+            }
+
+            // Unsubscribe from messages collection changed
+            if (_viewModel?.Messages != null)
+            {
+                try
+                {
+                    _viewModel.Messages.CollectionChanged -= OnMessagesCollectionChanged;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "Error unsubscribing from Messages.CollectionChanged (may already be unsubscribed)");
+                }
+            }
+
+            // Cancel operations
+            _cts?.Cancel();
+            _cts?.Dispose();
+
+            GC.SuppressFinalize(this);
+
+            _logger.LogInformation("ChatRoomPage disposed");
         }
-
-        // Unsubscribe WebViewService events
-        _webViewService.OnSceneReady -= OnSceneReady;
-        _webViewService.OnSceneError -= OnSceneError;
-
-        _disposed = true;
-        GC.SuppressFinalize(this);
-
-        _logger.LogDebug("ChatRoomPage disposed");
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during ChatRoomPage disposal");
+        }
     }
 
     #endregion

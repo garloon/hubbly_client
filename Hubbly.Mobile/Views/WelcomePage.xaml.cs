@@ -25,12 +25,19 @@ public partial class WelcomePage : ContentPage, IDisposable
 
     #region Lifecycle
 
-    protected override void OnAppearing()
+    protected override async void OnAppearing()
     {
         base.OnAppearing();
 
         _logger.LogDebug("WelcomePage appearing");
         _viewModel.OnAppearing();
+
+        // Fade-in animation
+        if (MainGrid != null)
+        {
+            MainGrid.Opacity = 0;
+            await MainGrid.FadeTo(1, 500, Easing.CubicInOut);
+        }
     }
 
     protected override void OnDisappearing()
@@ -45,37 +52,7 @@ public partial class WelcomePage : ContentPage, IDisposable
 
     #region Event Handlers
 
-    private async void OnTermsTapped(object sender, EventArgs e)
-    {
-        try
-        {
-            _logger.LogDebug("Terms tapped");
-
-            await DisplayAlert("Terms of Service",
-                "Welcome to Hubbly! By using our service, you agree to be respectful to other users and follow community guidelines. We're building a positive social space together!",
-                "Got it");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error showing terms");
-        }
-    }
-
-    private async void OnPrivacyTapped(object sender, EventArgs e)
-    {
-        try
-        {
-            _logger.LogDebug("Privacy tapped");
-
-            await DisplayAlert("Privacy Policy",
-                "Your privacy matters. We only store your nickname and avatar preferences. Chat messages are ephemeral and not permanently stored. You can leave anytime!",
-                "Understood");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error showing privacy policy");
-        }
-    }
+    // Event handlers removed - using commands instead
 
     #endregion
 
@@ -87,7 +64,7 @@ public partial class WelcomePage : ContentPage, IDisposable
 
         _logger.LogInformation("WelcomePage disposing...");
 
-        // Отписываемся от событий если есть
+        // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ
 
         _disposed = true;
         GC.SuppressFinalize(this);

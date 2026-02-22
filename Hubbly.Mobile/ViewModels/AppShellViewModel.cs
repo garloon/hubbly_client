@@ -144,6 +144,13 @@ public partial class AppShellViewModel : ObservableObject, IDisposable
         await _navigationService.NavigateToAsync("//about");
     }
 
+    [RelayCommand]
+    private async Task OpenChat()
+    {
+        _logger.LogInformation("🔰 AppShellViewModel: OpenChatCommand executed");
+        await _navigationService.NavigateToAsync("//chat");
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
