@@ -74,6 +74,9 @@ public static class MauiProgram
 
     private static void RegisterServices(IServiceCollection services)
     {
+        // Add logging services first
+        services.AddLogging();
+
         // Infrastructure services (Singleton)
         services.AddSingleton<DeviceIdService>();
         services.AddSingleton<TokenManager>();
