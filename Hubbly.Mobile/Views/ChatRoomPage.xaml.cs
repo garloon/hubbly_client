@@ -25,14 +25,14 @@ public partial class ChatRoomPage : ContentPage, IDisposable
     {
         try
         {
+            InitializeComponent();
+
             _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
              _webViewService = MauiProgram.ServiceProvider.GetRequiredService<WebViewService>();
              _authService = MauiProgram.ServiceProvider.GetRequiredService<AuthService>();
              _navigationService = MauiProgram.ServiceProvider.GetRequiredService<INavigationService>();
-
-            InitializeComponent();
 
             BindingContext = _viewModel;
 
