@@ -10,11 +10,11 @@ namespace Hubbly.Mobile.Views;
 
 public partial class ChatRoomPage : ContentPage, IDisposable
 {
-    private readonly ILogger<ChatRoomPage> _logger;
+    private ILogger<ChatRoomPage> _logger;
     private readonly ChatRoomViewModel _viewModel;
-    private readonly WebViewService _webViewService;
-    private readonly AuthService _authService;
-    private readonly INavigationService _navigationService;
+    private WebViewService _webViewService;
+    private AuthService _authService;
+    private INavigationService _navigationService;
     private readonly CancellationTokenSource _cts = new();
     private bool _disposed;
     private DateTime _lastTypingTime = DateTime.MinValue;
@@ -25,19 +25,73 @@ public partial class ChatRoomPage : ContentPage, IDisposable
     {
         try
         {
-            InitializeComponent();
-
+            // 1. Сначала базовые присвоения
             _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+
+            // 2. InitializeComponent с отдельным try-catch для диагностики
+            try
+            {
+                InitializeComponent();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"=== XAML INITIALIZATION ERROR ===");
+                System.Diagnostics.Debug.WriteLine($"Type: {ex.GetType().Name}");
+                System.Diagnostics.Debug.WriteLine($"Message: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"StackTrace: {ex.StackTrace}");
+
+                // Пробуем показать пользователю
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    await Application.Current.MainPage.DisplayAlert(
+                        "Page Error",
+                        $"Failed to load chat page: {ex.Message}",
+                        "OK");
+                });
+                throw;
+            }
+
+            // 3. После успешной инициализации XAML устанавливаем BindingContext
             BindingContext = _viewModel;
 
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-             _webViewService = MauiProgram.ServiceProvider.GetRequiredService<WebViewService>();
-             _authService = MauiProgram.ServiceProvider.GetRequiredService<AuthService>();
-             _navigationService = MauiProgram.ServiceProvider.GetRequiredService<INavigationService>();
+            // 4. Логгер (может быть null на этом этапе, но проверим)
+            _logger = logger;
+
+            // 5. Получаем сервисы через ServiceProvider с проверками
+            if (MauiProgram.ServiceProvider == null)
+            {
+                throw new InvalidOperationException("MauiProgram.ServiceProvider is null! App not properly initialized.");
+            }
+
+            // Получаем сервисы по одному с логированием
+            System.Diagnostics.Debug.WriteLine("Getting WebViewService...");
+            _webViewService = MauiProgram.ServiceProvider.GetService<WebViewService>();
+            if (_webViewService == null)
+            {
+                _webViewService = MauiProgram.ServiceProvider.GetRequiredService<WebViewService>(); // Это выбросит исключение если сервис не зарегистрирован
+            }
+            System.Diagnostics.Debug.WriteLine("✓ WebViewService obtained");
+
+            System.Diagnostics.Debug.WriteLine("Getting AuthService...");
+            _authService = MauiProgram.ServiceProvider.GetService<AuthService>();
+            if (_authService == null)
+            {
+                _authService = MauiProgram.ServiceProvider.GetRequiredService<AuthService>();
+            }
+            System.Diagnostics.Debug.WriteLine("✓ AuthService obtained");
+
+            System.Diagnostics.Debug.WriteLine("Getting INavigationService...");
+            _navigationService = MauiProgram.ServiceProvider.GetService<INavigationService>();
+            if (_navigationService == null)
+            {
+                _navigationService = MauiProgram.ServiceProvider.GetRequiredService<INavigationService>();
+            }
+            System.Diagnostics.Debug.WriteLine("✓ INavigationService obtained");
+
+            // 6. Теперь можно использовать логгер (он уже должен быть)
+            _logger?.LogInformation("ChatRoomPage constructor started");
 
             NavigationPage.SetHasNavigationBar(this, false);
-
-            _logger.LogInformation("ChatRoomPage constructor started");
 
             // Initialize WebView (subscribe to events) before setting source
             InitializeWebView();
@@ -48,19 +102,41 @@ public partial class ChatRoomPage : ContentPage, IDisposable
             // Set WebView source dynamically based on server URL from Preferences
             var serverUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
             var webViewUrl = $"{serverUrl.TrimEnd('/')}/three_scene.html";
-            _logger.LogInformation("Setting WebView source to: {Url}", webViewUrl);
-            
-            AvatarWebView.Source = webViewUrl;
-            _logger.LogInformation("WebView source set successfully");
+            _logger?.LogInformation("Setting WebView source to: {Url}", webViewUrl);
 
-            _logger.LogInformation("ChatRoomPage created successfully");
+            AvatarWebView.Source = webViewUrl;
+            _logger?.LogInformation("WebView source set successfully");
+
+            _logger?.LogInformation("ChatRoomPage created successfully");
 
             // Subscribe to orientation changes for adaptive layout
             DeviceDisplay.MainDisplayInfoChanged += OnMainDisplayInfoChanged;
         }
         catch (Exception ex)
         {
-            _logger.LogCritical(ex, "FATAL: Failed to construct ChatRoomPage - this will cause app crash");
+            // Диагностика ошибки
+            System.Diagnostics.Debug.WriteLine($"=== CRITICAL ERROR IN ChatRoomPage CONSTRUCTOR ===");
+            System.Diagnostics.Debug.WriteLine($"Type: {ex.GetType().Name}");
+            System.Diagnostics.Debug.WriteLine($"Message: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"StackTrace: {ex.StackTrace}");
+            if (ex.InnerException != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"Inner Exception: {ex.InnerException.Message}");
+            }
+
+            // Пробуем показать пользователю
+            try
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    await Application.Current.MainPage.DisplayAlert(
+                        "Critical Error",
+                        $"Failed to initialize chat: {ex.Message}",
+                        "OK");
+                });
+            }
+            catch { /* Игнорируем ошибки показа алерта */ }
+
             throw; // Re-throw so global handler can catch it
         }
     }
@@ -73,13 +149,13 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         {
             if (AvatarWebView == null)
             {
-                _logger.LogError("AvatarWebView is null - 3D will be disabled");
+                _logger?.LogError("AvatarWebView is null - 3D will be disabled");
                 _viewModel.Disable3D();
                 return;
             }
 
             // Log WebView source URL for debugging
-            _logger.LogInformation("WebView source URL: {Source}", AvatarWebView.Source?.ToString() ?? "null");
+            _logger?.LogInformation("WebView source URL: {Source}", AvatarWebView.Source?.ToString() ?? "null");
 
             // Subscribe to WebView events
             AvatarWebView.Navigated += OnWebViewNavigated;
@@ -90,11 +166,11 @@ public partial class ChatRoomPage : ContentPage, IDisposable
             _webViewService.OnSceneReady += OnSceneReady;
             _webViewService.OnSceneError += OnSceneError;
 
-            _logger.LogInformation("WebView initialized successfully");
+            _logger?.LogInformation("WebView initialized successfully");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error initializing WebView");
+            _logger?.LogError(ex, "Error initializing WebView");
             _viewModel.Disable3D();
         }
     }
@@ -106,97 +182,97 @@ public partial class ChatRoomPage : ContentPage, IDisposable
             if (_viewModel?.Messages != null && !_disposed)
             {
                 _viewModel.Messages.CollectionChanged += OnMessagesCollectionChanged;
-                _logger.LogInformation("CollectionView initialization complete");
+                _logger?.LogInformation("CollectionView initialization complete");
             }
             else
             {
-                _logger.LogWarning("Cannot initialize CollectionView: ViewModel or Messages is null, or page is disposed");
+                _logger?.LogWarning("Cannot initialize CollectionView: ViewModel or Messages is null, or page is disposed");
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error initializing CollectionView");
+            _logger?.LogError(ex, "Error initializing CollectionView");
         }
     }
 
-   private void OnMessagesCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-   {
-       const int maxAttempts = 3;
+    private void OnMessagesCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        const int maxAttempts = 3;
 
-       try
-       {
-           // Don't process if page is disposed or view is null
-           if (_disposed || MessagesCollectionView == null || _viewModel == null)
-               return;
+        try
+        {
+            // Don't process if page is disposed or view is null
+            if (_disposed || MessagesCollectionView == null || _viewModel == null)
+                return;
 
-           if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add && e.NewItems?.Count > 0)
-           {
-               MainThread.BeginInvokeOnMainThread(async () =>
-               {
-                   try
-                   {
-                       if (_disposed || MessagesCollectionView == null || _viewModel?.Messages == null)
-                           return;
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add && e.NewItems?.Count > 0)
+            {
+                MainThread.BeginInvokeOnMainThread(async () =>
+                {
+                    try
+                    {
+                        if (_disposed || MessagesCollectionView == null || _viewModel?.Messages == null)
+                            return;
 
-                       var messages = _viewModel.Messages;
-                       if (messages.Count == 0)
-                           return;
+                        var messages = _viewModel.Messages;
+                        if (messages.Count == 0)
+                            return;
 
-                       // Get the target index
-                       int targetIndex = messages.Count - 1;
+                        // Get the target index
+                        int targetIndex = messages.Count - 1;
 
-                       // Wait for UI to process the collection change
-                       await Task.Delay(100);
+                        // Wait for UI to process the collection change
+                        await Task.Delay(100);
 
-                       // Re-check after delay
-                       if (_disposed || MessagesCollectionView == null || _viewModel?.Messages == null)
-                           return;
+                        // Re-check after delay
+                        if (_disposed || MessagesCollectionView == null || _viewModel?.Messages == null)
+                            return;
 
-                       // Verify the index is still valid
-                       if (targetIndex < 0 || targetIndex >= _viewModel.Messages.Count)
-                           return;
+                        // Verify the index is still valid
+                        if (targetIndex < 0 || targetIndex >= _viewModel.Messages.Count)
+                            return;
 
-                       // Try scrolling with retry logic
-                       int attempts = 0;
+                        // Try scrolling with retry logic
+                        int attempts = 0;
 
-                       while (attempts < maxAttempts)
-                       {
-                           try
-                           {
-                               MessagesCollectionView.ScrollTo(targetIndex, ScrollToPosition.End);
-                               break; // Success, exit loop
-                           }
-                           catch (Exception ex) when (attempts < maxAttempts - 1)
-                           {
-                               attempts++;
-                               _logger.LogDebug(ex, "ScrollTo attempt {Attempt} failed, retrying...", attempts);
-                               await Task.Delay(100); // Wait before retry
-                           }
-                       }
-                   }
-                   catch (Exception ex)
-                   {
-                       _logger.LogDebug(ex, "ScrollTo failed after {Attempts} attempts", maxAttempts);
-                   }
-               });
-           }
-       }
-       catch (Exception ex)
-       {
-           // Log but don't throw - collection changed events should be safe
-           _logger.LogDebug(ex, "Error handling messages collection changed");
-       }
-   }
+                        while (attempts < maxAttempts)
+                        {
+                            try
+                            {
+                                MessagesCollectionView.ScrollTo(targetIndex, ScrollToPosition.End);
+                                break; // Success, exit loop
+                            }
+                            catch (Exception ex) when (attempts < maxAttempts - 1)
+                            {
+                                attempts++;
+                                _logger?.LogDebug(ex, "ScrollTo attempt {Attempt} failed, retrying...", attempts);
+                                await Task.Delay(100); // Wait before retry
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogDebug(ex, "ScrollTo failed after {Attempts} attempts", maxAttempts);
+                    }
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            // Log but don't throw - collection changed events should be safe
+            _logger?.LogDebug(ex, "Error handling messages collection changed");
+        }
+    }
 
     private void OnWebViewNavigating(object sender, WebNavigatingEventArgs e)
     {
         try
         {
-            _logger.LogInformation("WebView navigating to: {Url}", e.Url);
+            _logger?.LogInformation("WebView navigating to: {Url}", e.Url);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in OnWebViewNavigating");
+            _logger?.LogError(ex, "Error in OnWebViewNavigating");
         }
     }
 
@@ -207,12 +283,12 @@ public partial class ChatRoomPage : ContentPage, IDisposable
     protected override async void OnAppearing()
     {
         base.OnAppearing();
-        _logger.LogDebug("ChatRoomPage appearing");
+        _logger?.LogDebug("ChatRoomPage appearing");
 
         // Check if page is already disposed
         if (_disposed)
         {
-            _logger.LogWarning("ChatRoomPage appearing after disposed - ignoring");
+            _logger?.LogWarning("ChatRoomPage appearing after disposed - ignoring");
             return;
         }
 
@@ -221,7 +297,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
             // Re-initialize WebView source if it was reset in OnDisappearing
             if (AvatarWebView != null && AvatarWebView.Source == null)
             {
-                _logger.LogInformation("Re-initializing WebView source after cache clear");
+                _logger?.LogInformation("Re-initializing WebView source after cache clear");
                 var serverUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
                 AvatarWebView.Source = $"{serverUrl.TrimEnd('/')}/three_scene.html";
             }
@@ -243,7 +319,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
 
             if (!isAvailable && !_disposed)
             {
-                _logger.LogWarning("Server unavailable");
+                _logger?.LogWarning("Server unavailable");
                 await ShowErrorAndGoBack("Chat server is not responding. Please try again later.");
                 return;
             }
@@ -252,7 +328,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         {
             if (!_disposed)
             {
-                _logger.LogWarning("Connection timeout");
+                _logger?.LogWarning("Connection timeout");
                 await ShowErrorAndGoBack("Connection timeout. Please try again.");
             }
         }
@@ -260,7 +336,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         {
             if (!_disposed)
             {
-                _logger.LogError(ex, "Error in OnAppearing");
+                _logger?.LogError(ex, "Error in OnAppearing");
                 await ShowErrorAndGoBack("Failed to connect to chat server.");
             }
         }
@@ -270,7 +346,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
     {
         base.OnDisappearing();
 
-        _logger.LogDebug("ChatRoomPage disappearing");
+        _logger?.LogDebug("ChatRoomPage disappearing");
 
         // IMPORTANT: Do NOT clear the 3D scene or disconnect from chat here.
         // When navigating to modal pages (Settings/About), ChatRoomPage remains visible
@@ -283,7 +359,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
 
         _cts.Cancel(); // Only cancel operations, preserve scene
 
-        _logger.LogInformation("ChatRoomPage OnDisappearing: cancelled operations, scene preserved");
+        _logger?.LogInformation("ChatRoomPage OnDisappearing: cancelled operations, scene preserved");
     }
 
     #endregion
@@ -295,11 +371,11 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         try
         {
             // Handle WebView navigation completion if needed
-            _logger.LogDebug("WebView navigated to: {Url}", e.Url);
+            _logger?.LogDebug("WebView navigated to: {Url}", e.Url);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in OnWebViewNavigated");
+            _logger?.LogError(ex, "Error in OnWebViewNavigated");
         }
     }
 
@@ -312,13 +388,13 @@ public partial class ChatRoomPage : ContentPage, IDisposable
                 if (!_disposed && LoadingOverlay != null)
                 {
                     LoadingOverlay.IsVisible = false;
-                    _logger.LogInformation("3D scene ready: {Message}", message);
+                    _logger?.LogInformation("3D scene ready: {Message}", message);
                 }
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error handling scene ready");
+            _logger?.LogError(ex, "Error handling scene ready");
         }
     }
 
@@ -331,13 +407,13 @@ public partial class ChatRoomPage : ContentPage, IDisposable
                 if (!_disposed && LoadingOverlay != null)
                 {
                     LoadingOverlay.IsVisible = false;
-                    _logger.LogError("3D scene error: {Error}", error);
+                    _logger?.LogError("3D scene error: {Error}", error);
                 }
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error handling scene error");
+            _logger?.LogError(ex, "Error handling scene error");
         }
     }
 
@@ -350,14 +426,14 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         try
         {
             var orientation = DeviceDisplay.Current.MainDisplayInfo.Orientation;
-            _logger.LogDebug("Orientation changed to: {Orientation}", orientation);
+            _logger?.LogDebug("Orientation changed to: {Orientation}", orientation);
 
             // Adjust layout based on orientation
             AdjustLayoutForOrientation(orientation);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error handling orientation change");
+            _logger?.LogError(ex, "Error handling orientation change");
         }
     }
 
@@ -374,12 +450,12 @@ public partial class ChatRoomPage : ContentPage, IDisposable
             {
                 // Landscape: wider layout, adjust paddings and sizes
                 // The Grid with Auto,* will handle most of this automatically
-                _logger.LogDebug("Landscape layout applied");
+                _logger?.LogDebug("Landscape layout applied");
             }
             else
             {
                 // Portrait: taller layout
-                _logger.LogDebug("Portrait layout applied");
+                _logger?.LogDebug("Portrait layout applied");
             }
 
             // Force layout update
@@ -387,7 +463,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error adjusting layout for orientation");
+            _logger?.LogError(ex, "Error adjusting layout for orientation");
         }
     }
 
@@ -404,7 +480,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error showing error message");
+            _logger?.LogError(ex, "Error showing error message");
         }
     }
 
@@ -416,7 +492,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
     {
         if (_disposed) return;
 
-        _logger.LogInformation("ChatRoomPage disposing...");
+        _logger?.LogInformation("ChatRoomPage disposing...");
 
         try
         {
@@ -447,7 +523,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogDebug(ex, "Error unsubscribing from Messages.CollectionChanged (may already be unsubscribed)");
+                    _logger?.LogDebug(ex, "Error unsubscribing from Messages.CollectionChanged (may already be unsubscribed)");
                 }
             }
 
@@ -457,11 +533,11 @@ public partial class ChatRoomPage : ContentPage, IDisposable
 
             GC.SuppressFinalize(this);
 
-            _logger.LogInformation("ChatRoomPage disposed");
+            _logger?.LogInformation("ChatRoomPage disposed");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during ChatRoomPage disposal");
+            _logger?.LogError(ex, "Error during ChatRoomPage disposal");
         }
     }
 
