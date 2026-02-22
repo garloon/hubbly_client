@@ -13,6 +13,7 @@
 
     <ContentPage.Resources>
         <ResourceDictionary>
+            <!-- Явно объявляем все конвертеры с ключами -->
             <converters:AvatarColorConverter x:Key="AvatarColorConverter" />
             <converters:InitialsConverter x:Key="InitialsConverter" />
             <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
@@ -78,9 +79,10 @@
                                     ItemSizingStrategy="MeasureAllItems">
 
                         <CollectionView.ItemTemplate>
-                            <DataTemplate>
+                            <DataTemplate x:DataType="models:AvatarPresence">
                                 <components:AvatarView Nickname="{Binding Nickname}"
-                                                       Size="Large"
+                                                       AvatarColor="{DynamicResource PrimaryColor}"
+                                                       Size="Medium"
                                                        ShowOnlineStatus="True"
                                                        IsOnline="True"
                                                        Margin="8" />
@@ -121,11 +123,11 @@
             </Grid>
         </Grid>
 
-        <!-- ==================== 3. CHAT MESSAGES AREA (2 parts - 2x bigger than 3D) ==================== -->
+        <!-- ==================== 3. CHAT MESSAGES AREA (2 parts) ==================== -->
         <Grid Grid.Row="2"
               BackgroundColor="{DynamicResource PageBackgroundColor}"
               RowSpacing="0">
-            
+
             <!-- Chat Messages CollectionView -->
             <CollectionView x:Name="MessagesCollectionView"
                             ItemsSource="{Binding Messages}"
@@ -134,18 +136,18 @@
                             BackgroundColor="Transparent"
                             VerticalScrollBarVisibility="Always"
                             HorizontalScrollBarVisibility="Never">
-                
+
                 <CollectionView.ItemTemplate>
                     <DataTemplate x:DataType="models:ChatMessage">
-                        <Grid Padding="{StaticResource SpacingMd}"
+                        <Grid Padding="12,6"
                               Margin="0,2"
                               BackgroundColor="Transparent">
-                            
+
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            
+
                             <!-- Avatar -->
                             <components:AvatarView Grid.Column="0"
                                                    Nickname="{Binding SenderNickname}"
@@ -155,12 +157,12 @@
                                                    IsOnline="True"
                                                    Margin="0,0,8,0"
                                                    VerticalOptions="Start"/>
-                            
+
                             <!-- Message Content -->
                             <Grid Grid.Column="1"
                                   RowDefinitions="Auto,Auto"
                                   RowSpacing="2">
-                                
+
                                 <!-- Sender Name & Time -->
                                 <Grid Grid.Row="0"
                                       ColumnDefinitions="*,Auto"
@@ -176,7 +178,7 @@
                                            TextColor="{DynamicResource SecondaryTextColor}"
                                            VerticalOptions="Center"/>
                                 </Grid>
-                                
+
                                 <!-- Message Text -->
                                 <Label Grid.Row="1"
                                        Text="{Binding Content}"
@@ -188,7 +190,7 @@
                         </Grid>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
-                
+
                 <!-- Empty View when no messages -->
                 <CollectionView.EmptyView>
                     <StackLayout VerticalOptions="Center"
@@ -207,24 +209,25 @@
             </CollectionView>
         </Grid>
 
-        <!-- ==================== 4. INPUT AREA (Auto) ==================== -->
+        <!-- ==================== 4. INPUT AREA ==================== -->
         <Frame Grid.Row="3"
-               BackgroundColor="White"
-               Padding="{StaticResource SpacingMd}"
+               BackgroundColor="{DynamicResource CardBackgroundColor}"
+               Padding="12,8"
                HasShadow="True"
                CornerRadius="0"
                Margin="0">
 
             <Grid ColumnDefinitions="*,Auto"
-                  ColumnSpacing="{StaticResource SpacingSm}">
+                  ColumnSpacing="8">
 
                 <!-- Message Input -->
                 <Frame Grid.Column="0"
                        BackgroundColor="{DynamicResource InputBackgroundColor}"
                        Padding="0"
-                       HeightRequest="{OnPlatform Android=52, iOS=50, WinUI=50}"
-                       CornerRadius="{StaticResource CornerRadiusLg}"
-                       Margin="0,0,8,0">
+                       HeightRequest="48"
+                       CornerRadius="24"
+                       Margin="0,0,8,0"
+                       HasShadow="False">
 
                     <Grid ColumnDefinitions="Auto,*">
                         <!-- User Avatar (small) -->
@@ -244,7 +247,7 @@
                                ClearButtonVisibility="WhileEditing"
                                FontSize="15"
                                BackgroundColor="Transparent"
-                               TextColor="#1E293B"
+                               TextColor="{DynamicResource TextColor}"
                                VerticalOptions="Center"
                                VerticalTextAlignment="Center"
                                ReturnType="Send"
@@ -262,9 +265,9 @@
                 <Button Grid.Column="1"
                         Text="➤"
                         Command="{Binding SendMessageCommand}"
-                        WidthRequest="{StaticResource SpacingXl}"
-                        HeightRequest="{StaticResource SpacingXl}"
-                        CornerRadius="{StaticResource CornerRadiusCircle}"
+                        WidthRequest="48"
+                        HeightRequest="48"
+                        CornerRadius="24"
                         BackgroundColor="{DynamicResource PrimaryColor}"
                         TextColor="White"
                         FontSize="20"
