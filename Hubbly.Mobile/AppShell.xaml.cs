@@ -1,12 +1,15 @@
+using Android.Runtime;
 using Hubbly.Mobile.Services;
 using Hubbly.Mobile.ViewModels;
 
 namespace Hubbly.Mobile;
 
+[Preserve]
 public partial class AppShell : Shell
 {
     private readonly AppShellViewModel _viewModel;
 
+    [Preserve]
     public AppShell(AppShellViewModel viewModel)
     {
         InitializeComponent();

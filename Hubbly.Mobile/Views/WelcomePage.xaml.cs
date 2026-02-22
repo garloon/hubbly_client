@@ -1,14 +1,17 @@
+using Android.Runtime;
 using Hubbly.Mobile.ViewModels;
 using Microsoft.Extensions.Logging;
 
 namespace Hubbly.Mobile.Views;
 
+[Preserve]
 public partial class WelcomePage : ContentPage, IDisposable
 {
     private readonly ILogger<WelcomePage> _logger;
     private readonly WelcomeViewModel _viewModel;
     private bool _disposed;
 
+    [Preserve]
     public WelcomePage(WelcomeViewModel viewModel, ILogger<WelcomePage> logger)
     {
         InitializeComponent();

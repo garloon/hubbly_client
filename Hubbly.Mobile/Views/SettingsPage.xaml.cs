@@ -1,14 +1,17 @@
+using Android.Runtime;
 using Hubbly.Mobile.ViewModels;
 using Microsoft.Extensions.Logging;
 
 namespace Hubbly.Mobile.Views;
 
+[Preserve]
 public partial class SettingsPage : ContentPage, IDisposable
 {
     private readonly ILogger<SettingsPage> _logger;
     private readonly SettingsViewModel _viewModel;
     private bool _disposed;
 
+    [Preserve]
     public SettingsPage(SettingsViewModel viewModel, ILogger<SettingsPage> logger)
     {
         InitializeComponent();

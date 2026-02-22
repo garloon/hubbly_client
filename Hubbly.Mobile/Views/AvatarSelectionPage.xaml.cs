@@ -1,14 +1,17 @@
+using Android.Runtime;
 using Hubbly.Mobile.ViewModels;
 using Microsoft.Extensions.Logging;
 
 namespace Hubbly.Mobile.Views;
 
+[Preserve]
 public partial class AvatarSelectionPage : ContentPage, IDisposable
 {
     private readonly ILogger<AvatarSelectionPage> _logger;
     private readonly AvatarSelectionViewModel _viewModel;
     private bool _disposed;
 
+    [Preserve]
     public AvatarSelectionPage(AvatarSelectionViewModel viewModel, ILogger<AvatarSelectionPage> logger)
     {
         InitializeComponent();

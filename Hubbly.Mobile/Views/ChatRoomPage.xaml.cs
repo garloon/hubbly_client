@@ -1,4 +1,5 @@
-﻿using Hubbly.Mobile.Services;
+﻿using Android.Runtime;
+using Hubbly.Mobile.Services;
 using Hubbly.Mobile.ViewModels;
 using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
@@ -7,6 +8,7 @@ using System.Collections.ObjectModel;
 
 namespace Hubbly.Mobile.Views;
 
+[Preserve]
 public partial class ChatRoomPage : ContentPage, IDisposable
 {
     private readonly ILogger<ChatRoomPage> _logger;
@@ -18,6 +20,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
     private bool _disposed;
     private DateTime _lastTypingTime = DateTime.MinValue;
 
+    [Preserve]
     public ChatRoomPage(
         ChatRoomViewModel viewModel,
         WebViewService webViewService,
