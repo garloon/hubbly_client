@@ -8,7 +8,6 @@ using System.Collections.ObjectModel;
 
 namespace Hubbly.Mobile.Views;
 
-[Preserve]
 public partial class ChatRoomPage : ContentPage, IDisposable
 {
     private readonly ILogger<ChatRoomPage> _logger;
@@ -20,23 +19,20 @@ public partial class ChatRoomPage : ContentPage, IDisposable
     private bool _disposed;
     private DateTime _lastTypingTime = DateTime.MinValue;
 
-    [Preserve]
     public ChatRoomPage(
         ChatRoomViewModel viewModel,
-        WebViewService webViewService,
-        AuthService authService,
-        INavigationService navigationService,
         ILogger<ChatRoomPage> logger)
     {
         try
         {
-            InitializeComponent();
-
             _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
-            _webViewService = webViewService ?? throw new ArgumentNullException(nameof(webViewService));
-            _authService = authService ?? throw new ArgumentNullException(nameof(authService));
-            _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+
+             _webViewService = MauiProgram.ServiceProvider.GetRequiredService<WebViewService>();
+             _authService = MauiProgram.ServiceProvider.GetRequiredService<AuthService>();
+             _navigationService = MauiProgram.ServiceProvider.GetRequiredService<INavigationService>();
+
+            InitializeComponent();
 
             BindingContext = _viewModel;
 
