@@ -79,11 +79,8 @@ public class SignalRService : IDisposable
         _queueProcessorTimer = new Timer(ProcessMessageQueue, null,
             TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
 
-        // Get current user
-        Task.Run(async () =>
-        {
-            _currentUserId = await _tokenManager.GetAsync("user_id");
-        });
+        // NOTE: _currentUserId will be loaded on-demand when needed.
+        // Removed fire-and-forget to avoid race conditions.
     }
 
     #region Public Methods
@@ -148,6 +145,13 @@ public class SignalRService : IDisposable
             {
                 State = HubConnectionState.Connecting
             });
+
+            // Load current user ID before connecting
+            if (string.IsNullOrEmpty(_currentUserId))
+            {
+                _currentUserId = await _tokenManager.GetAsync("user_id");
+                _logger.LogDebug("SignalR: Loaded current user ID: {UserId}", _currentUserId);
+            }
 
             // Dispose old connection if exists
             await DisposeOldConnectionAsync();

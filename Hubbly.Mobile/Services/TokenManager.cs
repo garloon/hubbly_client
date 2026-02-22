@@ -18,9 +18,9 @@ public class TokenManager : IDisposable
     public TokenManager(ILogger<TokenManager> logger)
     {
         _logger = logger;
-
-        // Load tokens from storage on startup
-        Task.Run(async () => await LoadTokensFromStorageAsync());
+        
+        // NOTE: Tokens are loaded on-demand via GetAsync to avoid race conditions.
+        // Eager loading removed - was causing race conditions with fire-and-forget.
     }
 
     #region Public Methods

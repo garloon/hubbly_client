@@ -24,6 +24,9 @@ public partial class App : Application, IDisposable
 
         _logger.LogInformation("App initializing...");
 
+        // Setup global exception handlers
+        SetupGlobalExceptionHandlers();
+
         // Setup main page with Shell
         SetupMainPage(serviceProvider);
 
@@ -37,6 +40,60 @@ public partial class App : Application, IDisposable
     }
 
     #region Initialization
+
+    private void SetupGlobalExceptionHandlers()
+    {
+        try
+        {
+            // Handle unhandled exceptions on the main thread
+            AppDomain.CurrentDomain.UnhandledException += (sender, e) =>
+            {
+                var ex = e.ExceptionObject as Exception;
+                _logger.LogCritical(ex, "Unhandled exception (AppDomain.CurrentDomain.UnhandledException): {ExceptionType}", ex?.GetType().Name);
+                LogExceptionDetails(ex);
+            };
+
+            // Handle unobserved task exceptions
+            TaskScheduler.UnobservedTaskException += (sender, e) =>
+            {
+                _logger.LogCritical(e.Exception, "Unobserved task exception");
+                LogExceptionDetails(e.Exception);
+                e.SetObserved();
+            };
+
+            // Handle MAUI dispatcher exceptions
+            Dispatcher.UnhandledException += (sender, e) =>
+            {
+                _logger.LogCritical(e.Exception, "MAUI Dispatcher unhandled exception");
+                LogExceptionDetails(e.Exception);
+                e.Handled = true;
+            };
+
+            _logger.LogInformation("Global exception handlers installed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to setup global exception handlers");
+        }
+    }
+
+    private void LogExceptionDetails(Exception? ex)
+    {
+        if (ex == null) return;
+
+        _logger.LogCritical("Exception details:");
+        _logger.LogCritical("  Type: {Type}", ex.GetType().FullName);
+        _logger.LogCritical("  Message: {Message}", ex.Message);
+        _logger.LogCritical("  StackTrace: {StackTrace}", ex.StackTrace);
+        
+        if (ex.InnerException != null)
+        {
+            _logger.LogCritical("  Inner Exception:");
+            _logger.LogCritical("    Type: {Type}", ex.InnerException.GetType().FullName);
+            _logger.LogCritical("    Message: {Message}", ex.InnerException.Message);
+            _logger.LogCritical("    StackTrace: {StackTrace}", ex.InnerException.StackTrace);
+        }
+    }
 
     private void SetupMainPage(IServiceProvider serviceProvider)
     {

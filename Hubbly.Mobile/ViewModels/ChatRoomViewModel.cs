@@ -112,7 +112,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
 
     #region Initialization and Data Loading
 
-    private async void LoadUserData()
+    private async Task LoadUserDataAsync()
     {
         try
         {
@@ -177,6 +177,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error loading user data");
+            throw; // Re-throw to be caught by OnAppearing
         }
     }
 
@@ -1083,26 +1084,37 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     {
         _logger.LogDebug("ChatRoomPage OnAppearing");
 
-        // Сбрасываем состояние подключения для принудительного переподключения
-        IsConnected = false;
-        IsBusy = false;
-        ConnectionError = string.Empty;
-        HasConnectionError = false;
-
-        LoadUserData();
-
-        // Check server health
-        var isAvailable = await _authService.CheckServerHealthAsync();
-
-        if (!isAvailable)
+        try
         {
-            ConnectionError = "Chat server is not responding";
-            HasConnectionError = true;
-            return;
-        }
+            // Сбрасываем состояние подключения для принудительного переподключения
+            IsConnected = false;
+            IsBusy = false;
+            ConnectionError = string.Empty;
+            HasConnectionError = false;
 
-        // Всегда пытаемся подключиться при появлении страницы
-        await ConnectToChat();
+            // Load user data first
+            await LoadUserDataAsync();
+
+            // Check server health
+            var isAvailable = await _authService.CheckServerHealthAsync();
+
+            if (!isAvailable)
+            {
+                ConnectionError = "Chat server is not responding";
+                HasConnectionError = true;
+                return;
+            }
+
+            // Всегда пытаемся подключиться при появлении страницы
+            await ConnectToChat();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error in OnAppearing");
+            ConnectionError = "Failed to initialize chat. Please restart the app.";
+            HasConnectionError = true;
+            throw; // Re-throw so global exception handler can catch it
+        }
     }
 
     public async Task OnDisappearing()

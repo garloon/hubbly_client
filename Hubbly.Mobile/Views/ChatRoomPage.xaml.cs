@@ -25,34 +25,47 @@ public partial class ChatRoomPage : ContentPage, IDisposable
         INavigationService navigationService,
         ILogger<ChatRoomPage> logger)
     {
-        InitializeComponent();
+        try
+        {
+            InitializeComponent();
 
-        _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
-        _webViewService = webViewService ?? throw new ArgumentNullException(nameof(webViewService));
-        _authService = authService ?? throw new ArgumentNullException(nameof(authService));
-        _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
+            _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+            _webViewService = webViewService ?? throw new ArgumentNullException(nameof(webViewService));
+            _authService = authService ?? throw new ArgumentNullException(nameof(authService));
+            _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
 
-        BindingContext = _viewModel;
+            BindingContext = _viewModel;
 
-        _logger = logger;
+            _logger = logger;
 
-        NavigationPage.SetHasNavigationBar(this, false);
+            NavigationPage.SetHasNavigationBar(this, false);
 
-        // Initialize WebView (subscribe to events) before setting source
-        InitializeWebView();
+            _logger.LogInformation("ChatRoomPage constructor started");
 
-        // Initialize CollectionView for auto-scrolling
-        InitializeCollectionView();
+            // Initialize WebView (subscribe to events) before setting source
+            InitializeWebView();
 
-        // Set WebView source dynamically based on server URL from Preferences
-        var serverUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
-        AvatarWebView.Source = $"{serverUrl.TrimEnd('/')}/three_scene.html";
-        _logger.LogInformation("WebView source set to: {Source}", AvatarWebView.Source);
+            // Initialize CollectionView for auto-scrolling
+            InitializeCollectionView();
 
-        _logger.LogInformation("ChatRoomPage created");
+            // Set WebView source dynamically based on server URL from Preferences
+            var serverUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
+            var webViewUrl = $"{serverUrl.TrimEnd('/')}/three_scene.html";
+            _logger.LogInformation("Setting WebView source to: {Url}", webViewUrl);
+            
+            AvatarWebView.Source = webViewUrl;
+            _logger.LogInformation("WebView source set successfully");
 
-        // Subscribe to orientation changes for adaptive layout
-        DeviceDisplay.MainDisplayInfoChanged += OnMainDisplayInfoChanged;
+            _logger.LogInformation("ChatRoomPage created successfully");
+
+            // Subscribe to orientation changes for adaptive layout
+            DeviceDisplay.MainDisplayInfoChanged += OnMainDisplayInfoChanged;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogCritical(ex, "FATAL: Failed to construct ChatRoomPage - this will cause app crash");
+            throw; // Re-throw so global handler can catch it
+        }
     }
 
     #region Initialization

@@ -155,7 +155,6 @@ public static class MauiProgram
 
     private static void ConfigureFileLogging(MauiAppBuilder builder)
     {
-#if DEBUG
         try
         {
             // Determine log path for Android
@@ -166,7 +165,7 @@ public static class MauiProgram
                 // Downloads folder on Android
                 var downloads = Android.OS.Environment.GetExternalStoragePublicDirectory(
                     Android.OS.Environment.DirectoryDownloads).AbsolutePath;
-                logPath = Path.Combine(downloads, "hubbly_debug.log");
+                logPath = Path.Combine(downloads, "hubbly.log");
 
                 // Create folder if it doesn't exist
                 Directory.CreateDirectory(Path.GetDirectoryName(logPath));
@@ -177,12 +176,12 @@ public static class MauiProgram
             else
             {
                 // For other platforms - in CacheDirectory
-                logPath = Path.Combine(FileSystem.CacheDirectory, "hubbly_debug.log");
+                logPath = Path.Combine(FileSystem.CacheDirectory, "hubbly.log");
             }
 
             // Configure Serilog
             Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Debug()
+                .MinimumLevel.Information()
                 .WriteTo.File(
                     logPath,
                     outputTemplate: "{Timestamp:HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}",
@@ -203,7 +202,6 @@ public static class MauiProgram
         {
             Console.WriteLine($"❌ Failed to configure file logging: {ex.Message}");
         }
-#endif
     }
 
     #endregion
