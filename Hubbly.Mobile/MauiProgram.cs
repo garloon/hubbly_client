@@ -28,6 +28,9 @@ public static class MauiProgram
         // Configure platform-specific handlers
         ConfigurePlatformHandlers(builder);
 
+        // Configure logging FIRST (before registering pages that depend on ILogger<T>)
+        ConfigureLogging(builder);
+        
         // Configure file logging
         ConfigureFileLogging(builder);
         
@@ -39,9 +42,6 @@ public static class MauiProgram
 
         // Register pages
         RegisterPages(builder.Services);
-
-        // Configure logging
-        ConfigureLogging(builder);
 
         // OpenTelemetry Configuration (disabled for Android - causes startup issues)
         // TODO: Enable when properly configured for mobile
