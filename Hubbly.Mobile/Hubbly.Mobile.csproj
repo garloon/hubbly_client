@@ -22,9 +22,8 @@
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
 
-		<!-- Android ABI Configuration for universal APK -->
-		<AndroidSupportedAbis>armeabi-v7a;arm64-v8a;x86;x86_64</AndroidSupportedAbis>
-		<AndroidCreatePackagePerAbi>false</AndroidCreatePackagePerAbi>
+		<!-- Android Runtime Identifiers for universal APK (all architectures) -->
+		<RuntimeIdentifiers>android-arm;android-arm64;android-x86;android-x64</RuntimeIdentifiers>
 
 		<!-- Optimization -->
 		<AndroidLinkTool>r8</AndroidLinkTool>
