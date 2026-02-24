@@ -110,13 +110,13 @@ jobs:
         draft: false
         prerelease: false
         generate_release_notes: false
-        files: publish/android/*.apk
+        files: publish/android/*-Signed.apk
 
     - name: Upload APK as artifact
       uses: actions/upload-artifact@v4
       with:
         name: hubbly-android-apk
-        path: publish/android/*.apk
+        path: publish/android/*-Signed.apk
         retention-days: 30
 
     - name: Output download URL
