@@ -1348,10 +1348,20 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                 return;
             }
 
-            var avatarData = System.Text.Json.JsonSerializer.Deserialize<AvatarAtCenterDto>(avatarJson);
-            if (avatarData == null)
+            AvatarAtCenterDto? avatarData = null;
+            try
             {
-                _logger.LogWarning("UpdateSelectedAvatarFrom3DScene: Deserialization returned null");
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                avatarData = System.Text.Json.JsonSerializer.Deserialize<AvatarAtCenterDto>(avatarJson, options);
+                if (avatarData == null)
+                {
+                    _logger.LogWarning("UpdateSelectedAvatarFrom3DScene: Deserialization returned null");
+                    return;
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogError(ex, "UpdateSelectedAvatarFrom3DScene: Failed to deserialize avatarAtCenter JSON: {Json}", avatarJson);
                 return;
             }
 
@@ -1371,10 +1381,24 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             // Get all avatars from 3D scene
             _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: Calling hubbly3d.getAvatars()");
             var allAvatarsJson = await _webViewService.EvaluateJavaScriptAsync("hubbly3d.getAvatars()", _cts.Token);
+            _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: getAvatars returned: {Json}", allAvatarsJson);
+            
             List<AvatarAtCenterDto>? allAvatarsData = null;
             if (!string.IsNullOrEmpty(allAvatarsJson) && allAvatarsJson != "null")
             {
-                allAvatarsData = System.Text.Json.JsonSerializer.Deserialize<List<AvatarAtCenterDto>>(allAvatarsJson);
+                try
+                {
+                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    allAvatarsData = System.Text.Json.JsonSerializer.Deserialize<List<AvatarAtCenterDto>>(allAvatarsJson, options);
+                    if (allAvatarsData != null)
+                    {
+                        _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: Deserialized {Count} avatars from getAvatars()", allAvatarsData.Count);
+                    }
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogError(ex, "UpdateSelectedAvatarFrom3DScene: Failed to deserialize getAvatars JSON: {Json}", allAvatarsJson);
+                }
             }
 
             // Update all properties on main thread
@@ -1439,7 +1463,8 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                 return;
             }
 
-            var avatars = System.Text.Json.JsonSerializer.Deserialize<List<AvatarInfoDto>>(avatarsJson);
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var avatars = System.Text.Json.JsonSerializer.Deserialize<List<AvatarInfoDto>>(avatarsJson, options);
             if (avatars == null)
             {
                 _logger.LogWarning("SyncAvatarsFrom3DScene: Deserialization returned null");
@@ -1499,18 +1524,30 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     [RelayCommand]
     private async Task NavigateLeft()
     {
-        if (!CanNavigateLeft) return;
+        _logger.LogInformation("NavigateLeft command executed - CanNavigateLeft: {CanNavigateLeft}, IsHoldNavigationActive: {IsHoldActive}",
+            CanNavigateLeft, IsHoldNavigationActive);
+        
+        if (!CanNavigateLeft)
+        {
+            _logger.LogWarning("NavigateLeft: Cannot navigate left (CanNavigateLeft=false)");
+            return;
+        }
 
         IsHoldNavigationActive = true;
         try
         {
+            _logger.LogInformation("NavigateLeft: Calling hubbly3d.startHoldNavigation('prev')");
             var result = await _webViewService.EvaluateJavaScriptAsync("hubbly3d.startHoldNavigation('prev')", _cts.Token);
+            _logger.LogInformation("NavigateLeft: startHoldNavigation returned: {Result}", result);
+            
             // After a short delay, stop the hold navigation (single step)
             await Task.Delay(500);
-            _webViewService.EvaluateJavaScriptAsync("hubbly3d.stopHoldNavigation()", _cts.Token);
+            _logger.LogInformation("NavigateLeft: Calling hubbly3d.stopHoldNavigation()");
+            _ = _webViewService.EvaluateJavaScriptAsync("hubbly3d.stopHoldNavigation()", _cts.Token);
             
             // Update selection after navigation
             await Task.Delay(600); // Wait for animation
+            _logger.LogInformation("NavigateLeft: Updating selected avatar from 3D scene");
             await UpdateSelectedAvatarFrom3DScene();
         }
         finally
@@ -1522,18 +1559,30 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     [RelayCommand]
     private async Task NavigateRight()
     {
-        if (!CanNavigateRight) return;
+        _logger.LogInformation("NavigateRight command executed - CanNavigateRight: {CanNavigateRight}, IsHoldNavigationActive: {IsHoldActive}",
+            CanNavigateRight, IsHoldNavigationActive);
+        
+        if (!CanNavigateRight)
+        {
+            _logger.LogWarning("NavigateRight: Cannot navigate right (CanNavigateRight=false)");
+            return;
+        }
 
         IsHoldNavigationActive = true;
         try
         {
+            _logger.LogInformation("NavigateRight: Calling hubbly3d.startHoldNavigation('next')");
             var result = await _webViewService.EvaluateJavaScriptAsync("hubbly3d.startHoldNavigation('next')", _cts.Token);
+            _logger.LogInformation("NavigateRight: startHoldNavigation returned: {Result}", result);
+            
             // After a short delay, stop the hold navigation (single step)
             await Task.Delay(500);
-            _webViewService.EvaluateJavaScriptAsync("hubbly3d.stopHoldNavigation()", _cts.Token);
+            _logger.LogInformation("NavigateRight: Calling hubbly3d.stopHoldNavigation()");
+            _ = _webViewService.EvaluateJavaScriptAsync("hubbly3d.stopHoldNavigation()", _cts.Token);
             
             // Update selection after navigation
             await Task.Delay(600); // Wait for animation
+            _logger.LogInformation("NavigateRight: Updating selected avatar from 3D scene");
             await UpdateSelectedAvatarFrom3DScene();
         }
         finally
