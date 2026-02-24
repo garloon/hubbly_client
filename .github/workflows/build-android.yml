@@ -57,9 +57,9 @@ jobs:
           --framework net9.0-android \
           --output ./publish/android \
           /p:AndroidPackageFormat=apk \
-          /p:AndroidSupportedAbis="armeabi-v7a;arm64-v8a;x86;x86_64" \
+          /p:AndroidSupportedAbis='armeabi-v7a;arm64-v8a;x86;x86_64' \
           /p:AndroidCreatePackagePerAbi=false \
-          /p:AndroidEnableProguard=true \
+          /p:AndroidLinkTool=r8 \
           /p:AndroidUseAapt2=true \
           /p:AndroidSigningKeyStore=$(pwd)/hubbly.keystore \
           /p:AndroidSigningKeyAlias=${{ secrets.ANDROID_KEY_ALIAS }} \
