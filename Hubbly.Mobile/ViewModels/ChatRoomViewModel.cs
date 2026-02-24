@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using static Hubbly.Mobile.Services.SignalRService;
 
 namespace Hubbly.Mobile.ViewModels;
@@ -883,10 +884,13 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         Is3DEnabled = true;
         UseFallbackAvatars = false;
         
+        _logger.LogInformation("OnSceneReady: Starting avatar sync after 1s delay");
+        
         // Sync avatars from 3D scene and update selection
         _ = Task.Run(async () =>
         {
             await Task.Delay(1000); // Wait for initial avatars to load
+            _logger.LogInformation("OnSceneReady: Calling SyncAvatarsFrom3DScene");
             await SyncAvatarsFrom3DScene();
         });
     }
@@ -1276,11 +1280,22 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
 
     public class AvatarAtCenterDto
     {
+        [JsonPropertyName("userId")]
         public string UserId { get; set; } = string.Empty;
+        
+        [JsonPropertyName("nickname")]
         public string Nickname { get; set; } = string.Empty;
+        
+        [JsonPropertyName("gender")]
         public string Gender { get; set; } = "male";
+        
+        [JsonPropertyName("slotIndex")]
         public int SlotIndex { get; set; }
+        
+        [JsonPropertyName("xPosition")]
         public float XPosition { get; set; }
+        
+        [JsonPropertyName("isLoaded")]
         public bool IsLoaded { get; set; }
     }
 
@@ -1298,8 +1313,12 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     /// </summary>
     private async Task UpdateSelectedAvatarFrom3DScene()
     {
+        _logger.LogInformation("UpdateSelectedAvatarFrom3DScene called - Is3DEnabled: {Is3DEnabled}, SceneReady: {SceneReady}, OnlineAvatars count: {Count}",
+            Is3DEnabled, _webViewService?.IsSceneReady, OnlineAvatars.Count);
+        
         if (!Is3DEnabled || !_webViewService.IsSceneReady)
         {
+            _logger.LogWarning("UpdateSelectedAvatarFrom3DScene: Skipping - 3D not enabled or scene not ready");
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 SelectedAvatar = null;
@@ -1312,9 +1331,13 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
 
         try
         {
+            _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: Calling hubbly3d.getAvatarAtCenter()");
             var avatarJson = await _webViewService.EvaluateJavaScriptAsync("hubbly3d.getAvatarAtCenter()", _cts.Token);
+            _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: getAvatarAtCenter returned: {Json}", avatarJson);
+            
             if (string.IsNullOrEmpty(avatarJson) || avatarJson == "null")
             {
+                _logger.LogWarning("UpdateSelectedAvatarFrom3DScene: getAvatarAtCenter returned null or empty");
                 await MainThread.InvokeOnMainThreadAsync(() =>
                 {
                     SelectedAvatar = null;
@@ -1326,12 +1349,27 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             }
 
             var avatarData = System.Text.Json.JsonSerializer.Deserialize<AvatarAtCenterDto>(avatarJson);
-            if (avatarData == null) return;
+            if (avatarData == null)
+            {
+                _logger.LogWarning("UpdateSelectedAvatarFrom3DScene: Deserialization returned null");
+                return;
+            }
 
-            // Find in OnlineAvatars collection
-            var avatarPresence = OnlineAvatars.FirstOrDefault(a => a.UserId.ToString() == avatarData.UserId);
+            _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: Got avatar {Nickname} at slot {SlotIndex}, userId: {UserId}",
+                avatarData.Nickname, avatarData.SlotIndex, avatarData.UserId);
+
+            // Find in OnlineAvatars collection (parse userId to GUID for comparison)
+            if (!Guid.TryParse(avatarData.UserId, out var avatarGuid))
+            {
+                _logger.LogWarning("UpdateSelectedAvatarFrom3DScene: Invalid GUID format for userId: {UserId}", avatarData.UserId);
+                return;
+            }
+            
+            var avatarPresence = OnlineAvatars.FirstOrDefault(a => a.UserId == avatarGuid);
+            _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: Found in OnlineAvatars: {Found}", avatarPresence != null);
 
             // Get all avatars from 3D scene
+            _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: Calling hubbly3d.getAvatars()");
             var allAvatarsJson = await _webViewService.EvaluateJavaScriptAsync("hubbly3d.getAvatars()", _cts.Token);
             List<AvatarAtCenterDto>? allAvatarsData = null;
             if (!string.IsNullOrEmpty(allAvatarsJson) && allAvatarsJson != "null")
@@ -1346,11 +1384,13 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                 {
                     SelectedAvatar = avatarPresence;
                     IsControlPanelVisible = true;
+                    _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: Set SelectedAvatar and IsControlPanelVisible=true");
                 }
                 else
                 {
                     SelectedAvatar = null;
                     IsControlPanelVisible = false;
+                    _logger.LogWarning("UpdateSelectedAvatarFrom3DScene: avatarPresence is null, hiding panel");
                 }
 
                 if (allAvatarsData != null && allAvatarsData.Count > 1)
@@ -1358,6 +1398,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                     var currentSlot = avatarData.SlotIndex;
                     CanNavigateLeft = allAvatarsData.Any(a => a.SlotIndex < currentSlot);
                     CanNavigateRight = allAvatarsData.Any(a => a.SlotIndex > currentSlot);
+                    _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: Navigation - Left: {Left}, Right: {Right}", CanNavigateLeft, CanNavigateRight);
                 }
                 else
                 {
@@ -1377,42 +1418,74 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     /// </summary>
     private async Task SyncAvatarsFrom3DScene()
     {
-        if (!Is3DEnabled || !_webViewService.IsSceneReady) return;
+        _logger.LogInformation("SyncAvatarsFrom3DScene called - Is3DEnabled: {Is3DEnabled}, SceneReady: {SceneReady}, OnlineAvatars before: {Count}",
+            Is3DEnabled, _webViewService?.IsSceneReady, OnlineAvatars.Count);
+        
+        if (!Is3DEnabled || !_webViewService.IsSceneReady)
+        {
+            _logger.LogWarning("SyncAvatarsFrom3DScene: Skipping - 3D not enabled or scene not ready");
+            return;
+        }
 
         try
         {
+            _logger.LogInformation("SyncAvatarsFrom3DScene: Calling hubbly3d.getAvatars()");
             var avatarsJson = await _webViewService.EvaluateJavaScriptAsync("hubbly3d.getAvatars()", _cts.Token);
-            if (string.IsNullOrEmpty(avatarsJson)) return;
+            _logger.LogInformation("SyncAvatarsFrom3DScene: getAvatars returned: {Json}", avatarsJson);
+            
+            if (string.IsNullOrEmpty(avatarsJson) || avatarsJson == "null")
+            {
+                _logger.LogWarning("SyncAvatarsFrom3DScene: getAvatars returned null or empty");
+                return;
+            }
 
             var avatars = System.Text.Json.JsonSerializer.Deserialize<List<AvatarInfoDto>>(avatarsJson);
-            if (avatars == null) return;
+            if (avatars == null)
+            {
+                _logger.LogWarning("SyncAvatarsFrom3DScene: Deserialization returned null");
+                return;
+            }
+
+            _logger.LogInformation("SyncAvatarsFrom3DScene: Deserialized {Count} avatars from 3D scene", avatars.Count);
 
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 // Update OnlineAvatars collection based on 3D scene
                 foreach (var avatarInfo in avatars)
                 {
-                    var existing = OnlineAvatars.FirstOrDefault(a => a.UserId.ToString() == avatarInfo.UserId);
+                    // Try to parse UserId as GUID
+                    if (!Guid.TryParse(avatarInfo.UserId, out var userIdGuid))
+                    {
+                        _logger.LogWarning("SyncAvatarsFrom3DScene: Invalid GUID format for userId '{UserId}', skipping avatar {Nickname}",
+                            avatarInfo.UserId, avatarInfo.Nickname);
+                        continue;
+                    }
+
+                    var existing = OnlineAvatars.FirstOrDefault(a => a.UserId == userIdGuid);
                     if (existing == null)
                     {
                         OnlineAvatars.Add(new AvatarPresence
                         {
-                            UserId = Guid.Parse(avatarInfo.UserId),
+                            UserId = userIdGuid,
                             Nickname = avatarInfo.Nickname,
                             AvatarConfig = new AvatarConfigDto { Gender = avatarInfo.Gender },
                             JoinedAt = DateTime.UtcNow,
                             IsCurrentUser = avatarInfo.UserId == _userId
                         });
+                        _logger.LogInformation("SyncAvatarsFrom3DScene: Added avatar {Nickname} ({UserId})", avatarInfo.Nickname, userIdGuid);
                     }
                 }
 
                 // Remove avatars that are no longer in 3D scene
-                var toRemove = OnlineAvatars.Where(a => !avatars.Any(v => v.UserId == a.UserId.ToString())).ToList();
+                var toRemove = OnlineAvatars.Where(a => !avatars.Any(v => Guid.TryParse(v.UserId, out var vid) && vid == a.UserId)).ToList();
                 foreach (var removed in toRemove)
                 {
+                    _logger.LogInformation("SyncAvatarsFrom3DScene: Removing avatar {Nickname} ({UserId})", removed.Nickname, removed.UserId);
                     OnlineAvatars.Remove(removed);
                 }
             });
+
+            _logger.LogInformation("SyncAvatarsFrom3DScene: OnlineAvatars count after sync: {Count}", OnlineAvatars.Count);
 
             // After sync, update selected avatar
             await UpdateSelectedAvatarFrom3DScene();
