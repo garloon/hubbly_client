@@ -30,7 +30,7 @@
     </ContentPage.Resources>
 
     <!-- Адаптивный Grid с динамическими пропорциями -->
-    <Grid x:Name="MainGrid" RowDefinitions="Auto,*,2*,Auto"
+    <Grid x:Name="MainGrid" RowDefinitions="Auto,*,Auto,2*,Auto"
           ColumnDefinitions="*"
           RowSpacing="0">
 
@@ -123,8 +123,82 @@
             </Grid>
         </Grid>
 
-        <!-- ==================== 3. CHAT MESSAGES AREA (2 parts) ==================== -->
+        <!-- ==================== 2.5. CONTROL PANEL ==================== -->
         <Grid Grid.Row="2"
+              ColumnDefinitions="Auto,*,Auto,Auto"
+              VerticalOptions="Center"
+              Padding="16,8"
+              BackgroundColor="{DynamicResource CardBackgroundColor}"
+              IsVisible="{Binding IsControlPanelVisible}">
+            
+            <!-- Navigate Left Button -->
+            <Button x:Name="BtnNavigateLeft"
+                    Grid.Column="0"
+                    Text="◄"
+                    Command="{Binding NavigateLeftCommand}"
+                    IsEnabled="{Binding CanNavigateLeft}"
+                    WidthRequest="50"
+                    HeightRequest="50"
+                    FontSize="24"
+                    BackgroundColor="{DynamicResource PrimaryColor}"
+                    TextColor="White"
+                    CornerRadius="25"
+                    Margin="8,0"
+                    VerticalOptions="Center">
+                <!-- Анимации временно удалены для сборки -->
+            </Button>
+
+            <!-- Nickname Display -->
+            <Label Grid.Column="1"
+                   Text="{Binding SelectedAvatar.Nickname}"
+                   FontSize="18"
+                   FontAttributes="Bold"
+                   TextColor="{DynamicResource TextColor}"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center">
+                <Label.Triggers>
+                    <DataTrigger TargetType="Label" Binding="{Binding SelectedAvatar.IsCurrentUser}" Value="True">
+                        <Setter Property="TextColor" Value="{DynamicResource PrimaryColor}" />
+                    </DataTrigger>
+                </Label.Triggers>
+            </Label>
+
+            <!-- Navigate Right Button -->
+            <Button x:Name="BtnNavigateRight"
+                    Grid.Column="2"
+                    Text="►"
+                    Command="{Binding NavigateRightCommand}"
+                    IsEnabled="{Binding CanNavigateRight}"
+                    WidthRequest="50"
+                    HeightRequest="50"
+                    FontSize="24"
+                    BackgroundColor="{DynamicResource PrimaryColor}"
+                    TextColor="White"
+                    CornerRadius="25"
+                    Margin="8,0"
+                    VerticalOptions="Center">
+                <!-- Анимации временно удалены для сборки -->
+            </Button>
+
+            <!-- Context Menu Button -->
+            <Button x:Name="BtnContextMenu"
+                    Grid.Column="3"
+                    Text="⋮"
+                    Command="{Binding ShowContextMenuCommand}"
+                    WidthRequest="50"
+                    HeightRequest="50"
+                    FontSize="24"
+                    BackgroundColor="{DynamicResource SecondaryColor}"
+                    TextColor="White"
+                    CornerRadius="25"
+                    Margin="8,0"
+                    VerticalOptions="Center">
+                <!-- Анимации временно удалены для сборки -->
+            </Button>
+        </Grid>
+
+        <!-- ==================== 3. CHAT MESSAGES AREA (2 parts) ==================== -->
+        <Grid Grid.Row="3"
               BackgroundColor="{DynamicResource PageBackgroundColor}"
               RowSpacing="0">
 
@@ -210,7 +284,7 @@
         </Grid>
 
         <!-- ==================== 4. INPUT AREA ==================== -->
-        <Frame Grid.Row="3"
+        <Frame Grid.Row="4"
                BackgroundColor="{DynamicResource CardBackgroundColor}"
                Padding="12,8"
                HasShadow="True"

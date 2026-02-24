@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using System.Collections.Generic;
 using Hubbly.Mobile.Models;
 using System.Collections.ObjectModel;
+using System.Text.Json;
+using System.Threading;
 
 namespace Hubbly.Mobile.Views;
 
@@ -111,6 +113,9 @@ public partial class ChatRoomPage : ContentPage, IDisposable
 
             // Subscribe to orientation changes for adaptive layout
             DeviceDisplay.MainDisplayInfoChanged += OnMainDisplayInfoChanged;
+
+            // Initialize navigation button handlers
+            InitializeNavigationButtons();
         }
         catch (Exception ex)
         {
@@ -142,6 +147,94 @@ public partial class ChatRoomPage : ContentPage, IDisposable
     }
 
     #region Initialization
+
+    private void InitializeNavigationButtons()
+    {
+        try
+        {
+            if (BtnNavigateLeft != null)
+            {
+                BtnNavigateLeft.Pressed += OnNavigateLeftPressed;
+                BtnNavigateLeft.Released += OnNavigateLeftReleased;
+                BtnNavigateLeft.Clicked += OnNavigateLeftClicked;
+            }
+
+            if (BtnNavigateRight != null)
+            {
+                BtnNavigateRight.Pressed += OnNavigateRightPressed;
+                BtnNavigateRight.Released += OnNavigateRightReleased;
+                BtnNavigateRight.Clicked += OnNavigateRightClicked;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error initializing navigation buttons");
+        }
+    }
+
+    private async void OnNavigateLeftPressed(object sender, EventArgs e)
+    {
+        try
+        {
+            // Start hold navigation immediately
+            await _webViewService.EvaluateJavaScriptAsync("hubbly3d.startHoldNavigation('prev')", CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error on navigate left pressed");
+        }
+    }
+
+    private async void OnNavigateLeftReleased(object sender, EventArgs e)
+    {
+        try
+        {
+            await _webViewService.EvaluateJavaScriptAsync("hubbly3d.stopHoldNavigation()", CancellationToken.None);
+            // Update selection after navigation
+            await Task.Delay(600);
+            await _viewModel.RefreshSelectedAvatarAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error on navigate left released");
+        }
+    }
+
+    private async void OnNavigateLeftClicked(object sender, EventArgs e)
+    {
+        // Single click is handled by hold navigation, do nothing
+    }
+
+    private async void OnNavigateRightPressed(object sender, EventArgs e)
+    {
+        try
+        {
+            await _webViewService.EvaluateJavaScriptAsync("hubbly3d.startHoldNavigation('next')", CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error on navigate right pressed");
+        }
+    }
+
+    private async void OnNavigateRightReleased(object sender, EventArgs e)
+    {
+        try
+        {
+            await _webViewService.EvaluateJavaScriptAsync("hubbly3d.stopHoldNavigation()", CancellationToken.None);
+            await Task.Delay(600);
+            await _viewModel.RefreshSelectedAvatarAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Error on navigate right released");
+        }
+    }
+
+    private async void OnNavigateRightClicked(object sender, EventArgs e)
+    {
+        // Single click is handled by hold navigation, do nothing
+    }
 
     private void InitializeWebView()
     {
@@ -512,6 +605,21 @@ public partial class ChatRoomPage : ContentPage, IDisposable
             {
                 _webViewService.OnSceneReady -= OnSceneReady;
                 _webViewService.OnSceneError -= OnSceneError;
+            }
+
+            // Unsubscribe from navigation buttons
+            if (BtnNavigateLeft != null)
+            {
+                BtnNavigateLeft.Pressed -= OnNavigateLeftPressed;
+                BtnNavigateLeft.Released -= OnNavigateLeftReleased;
+                BtnNavigateLeft.Clicked -= OnNavigateLeftClicked;
+            }
+
+            if (BtnNavigateRight != null)
+            {
+                BtnNavigateRight.Pressed -= OnNavigateRightPressed;
+                BtnNavigateRight.Released -= OnNavigateRightReleased;
+                BtnNavigateRight.Clicked -= OnNavigateRightClicked;
             }
 
             // Unsubscribe from messages collection changed

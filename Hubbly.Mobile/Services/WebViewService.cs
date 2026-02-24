@@ -635,7 +635,7 @@ public class WebViewService : IDisposable
         }
     }
 
-    private async Task<string> EvaluateJavaScriptAsync(string script, CancellationToken cancellationToken)
+    public async Task<string> EvaluateJavaScriptAsync(string script, CancellationToken cancellationToken)
     {
         if (!_isInitialized || _webView == null)
         {

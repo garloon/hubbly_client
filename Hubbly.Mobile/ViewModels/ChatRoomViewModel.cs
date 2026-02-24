@@ -4,8 +4,10 @@ using Hubbly.Mobile.Models;
 using Hubbly.Mobile.Services;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Text.Json;
 using static Hubbly.Mobile.Services.SignalRService;
 
 namespace Hubbly.Mobile.ViewModels;
@@ -56,6 +58,12 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     private ObservableCollection<AvatarPresence> _onlineAvatars = new();
 
     [ObservableProperty]
+    private AvatarPresence? _selectedAvatar;
+
+    [ObservableProperty]
+    private bool _isControlPanelVisible = false;
+
+    [ObservableProperty]
     private string _roomName = "Connecting...";
 
     [ObservableProperty]
@@ -84,6 +92,15 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
 
     [ObservableProperty]
     private AvatarConfigDto _currentUserAvatar;
+
+    [ObservableProperty]
+    private bool _canNavigateLeft = false;
+
+    [ObservableProperty]
+    private bool _canNavigateRight = false;
+
+    [ObservableProperty]
+    private bool _isHoldNavigationActive = false;
 
     public ChatRoomViewModel(
         SignalRService signalRService,
@@ -463,20 +480,6 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     }
 
     [RelayCommand]
-    private async Task NavigateLeft()
-    {
-        _logger.LogDebug("Navigate left");
-        // TODO: Implement navigation between avatars
-    }
-
-    [RelayCommand]
-    private async Task NavigateRight()
-    {
-        _logger.LogDebug("Navigate right");
-        // TODO: Implement navigation between avatars
-    }
-
-    [RelayCommand]
     private async Task RetryConnection()
     {
         ConnectionError = string.Empty;
@@ -593,6 +596,9 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
 
                 // Add to 3D scene
                 await Ensure3DAvatarPresence(userData.UserId, userData.Nickname, gender);
+                
+                // Sync avatars from 3D scene to ensure consistency
+                await SyncAvatarsFrom3DScene();
             });
         }
         catch (Exception ex)
@@ -637,12 +643,59 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                 {
                     await _webViewService.RemoveAvatarAsync(data.UserId);
                 }
+
+                // Check if selected avatar was removed
+                if (SelectedAvatar?.UserId.ToString() == data.UserId)
+                {
+                    // Select fallback: self if exists, otherwise nearest
+                    await SelectFallbackAvatarAsync();
+                }
+
+                // Sync avatars from 3D scene to ensure consistency
+                await SyncAvatarsFrom3DScene();
             });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error handling user left");
         }
+    }
+
+    /// <summary>
+    /// Selects a fallback avatar when current selection is removed
+    /// </summary>
+    private async Task SelectFallbackAvatarAsync()
+    {
+        await MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            // Try to select self first
+            var selfAvatar = OnlineAvatars.FirstOrDefault(a => a.IsCurrentUser);
+            if (selfAvatar != null)
+            {
+                SelectedAvatar = selfAvatar;
+                // Center camera on self
+                if (_is3DEnabled && _webViewService.IsSceneReady)
+                {
+                    await _webViewService.EvaluateJavaScriptAsync($"hubbly3d.centerOnAvatar('{selfAvatar.UserId}')", _cts.Token);
+                }
+                return;
+            }
+
+            // If no self, select first available
+            if (OnlineAvatars.Any())
+            {
+                SelectedAvatar = OnlineAvatars.First();
+                if (_is3DEnabled && _webViewService.IsSceneReady)
+                {
+                    await _webViewService.EvaluateJavaScriptAsync($"hubbly3d.centerOnAvatar('{SelectedAvatar.UserId}')", _cts.Token);
+                }
+                return;
+            }
+
+            // No avatars left
+            SelectedAvatar = null;
+            IsControlPanelVisible = false;
+        });
     }
 
     private void OnUserTyping(object sender, string userId)
@@ -824,11 +877,18 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         }
     }
 
-    private void OnSceneReady(object sender, string message)
+    private async void OnSceneReady(object sender, string message)
     {
         _logger.LogInformation("3D Scene ready");
         Is3DEnabled = true;
         UseFallbackAvatars = false;
+        
+        // Sync avatars from 3D scene and update selection
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(1000); // Wait for initial avatars to load
+            await SyncAvatarsFrom3DScene();
+        });
     }
 
     private void OnSceneError(object sender, string error)
@@ -1208,6 +1268,291 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
 
         // Call async dispose synchronously for compatibility
         DisposeAsync().AsTask().GetAwaiter().GetResult();
+    }
+
+    #endregion
+
+    #region DTOs for 3D Scene
+
+    public class AvatarAtCenterDto
+    {
+        public string UserId { get; set; } = string.Empty;
+        public string Nickname { get; set; } = string.Empty;
+        public string Gender { get; set; } = "male";
+        public int SlotIndex { get; set; }
+        public float XPosition { get; set; }
+        public bool IsLoaded { get; set; }
+    }
+
+    public class AvatarInfoDto : AvatarAtCenterDto
+    {
+        // Same structure, used for avatar list
+    }
+
+    #endregion
+
+    #region Navigation and Control Panel
+
+    /// <summary>
+    /// Updates the selected avatar based on 3D scene state
+    /// </summary>
+    private async Task UpdateSelectedAvatarFrom3DScene()
+    {
+        if (!Is3DEnabled || !_webViewService.IsSceneReady)
+        {
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                SelectedAvatar = null;
+                IsControlPanelVisible = false;
+                CanNavigateLeft = false;
+                CanNavigateRight = false;
+            });
+            return;
+        }
+
+        try
+        {
+            var avatarJson = await _webViewService.EvaluateJavaScriptAsync("hubbly3d.getAvatarAtCenter()", _cts.Token);
+            if (string.IsNullOrEmpty(avatarJson) || avatarJson == "null")
+            {
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    SelectedAvatar = null;
+                    IsControlPanelVisible = false;
+                    CanNavigateLeft = false;
+                    CanNavigateRight = false;
+                });
+                return;
+            }
+
+            var avatarData = System.Text.Json.JsonSerializer.Deserialize<AvatarAtCenterDto>(avatarJson);
+            if (avatarData == null) return;
+
+            // Find in OnlineAvatars collection
+            var avatarPresence = OnlineAvatars.FirstOrDefault(a => a.UserId.ToString() == avatarData.UserId);
+
+            // Get all avatars from 3D scene
+            var allAvatarsJson = await _webViewService.EvaluateJavaScriptAsync("hubbly3d.getAvatars()", _cts.Token);
+            List<AvatarAtCenterDto>? allAvatarsData = null;
+            if (!string.IsNullOrEmpty(allAvatarsJson) && allAvatarsJson != "null")
+            {
+                allAvatarsData = System.Text.Json.JsonSerializer.Deserialize<List<AvatarAtCenterDto>>(allAvatarsJson);
+            }
+
+            // Update all properties on main thread
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                if (avatarPresence != null)
+                {
+                    SelectedAvatar = avatarPresence;
+                    IsControlPanelVisible = true;
+                }
+                else
+                {
+                    SelectedAvatar = null;
+                    IsControlPanelVisible = false;
+                }
+
+                if (allAvatarsData != null && allAvatarsData.Count > 1)
+                {
+                    var currentSlot = avatarData.SlotIndex;
+                    CanNavigateLeft = allAvatarsData.Any(a => a.SlotIndex < currentSlot);
+                    CanNavigateRight = allAvatarsData.Any(a => a.SlotIndex > currentSlot);
+                }
+                else
+                {
+                    CanNavigateLeft = false;
+                    CanNavigateRight = false;
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating selected avatar from 3D scene");
+        }
+    }
+
+    /// <summary>
+    /// Synchronizes avatars list with 3D scene (called on SignalR events)
+    /// </summary>
+    private async Task SyncAvatarsFrom3DScene()
+    {
+        if (!Is3DEnabled || !_webViewService.IsSceneReady) return;
+
+        try
+        {
+            var avatarsJson = await _webViewService.EvaluateJavaScriptAsync("hubbly3d.getAvatars()", _cts.Token);
+            if (string.IsNullOrEmpty(avatarsJson)) return;
+
+            var avatars = System.Text.Json.JsonSerializer.Deserialize<List<AvatarInfoDto>>(avatarsJson);
+            if (avatars == null) return;
+
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                // Update OnlineAvatars collection based on 3D scene
+                foreach (var avatarInfo in avatars)
+                {
+                    var existing = OnlineAvatars.FirstOrDefault(a => a.UserId.ToString() == avatarInfo.UserId);
+                    if (existing == null)
+                    {
+                        OnlineAvatars.Add(new AvatarPresence
+                        {
+                            UserId = Guid.Parse(avatarInfo.UserId),
+                            Nickname = avatarInfo.Nickname,
+                            AvatarConfig = new AvatarConfigDto { Gender = avatarInfo.Gender },
+                            JoinedAt = DateTime.UtcNow,
+                            IsCurrentUser = avatarInfo.UserId == _userId
+                        });
+                    }
+                }
+
+                // Remove avatars that are no longer in 3D scene
+                var toRemove = OnlineAvatars.Where(a => !avatars.Any(v => v.UserId == a.UserId.ToString())).ToList();
+                foreach (var removed in toRemove)
+                {
+                    OnlineAvatars.Remove(removed);
+                }
+            });
+
+            // After sync, update selected avatar
+            await UpdateSelectedAvatarFrom3DScene();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error syncing avatars from 3D scene");
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateLeft()
+    {
+        if (!CanNavigateLeft) return;
+
+        IsHoldNavigationActive = true;
+        try
+        {
+            var result = await _webViewService.EvaluateJavaScriptAsync("hubbly3d.startHoldNavigation('prev')", _cts.Token);
+            // After a short delay, stop the hold navigation (single step)
+            await Task.Delay(500);
+            _webViewService.EvaluateJavaScriptAsync("hubbly3d.stopHoldNavigation()", _cts.Token);
+            
+            // Update selection after navigation
+            await Task.Delay(600); // Wait for animation
+            await UpdateSelectedAvatarFrom3DScene();
+        }
+        finally
+        {
+            IsHoldNavigationActive = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task NavigateRight()
+    {
+        if (!CanNavigateRight) return;
+
+        IsHoldNavigationActive = true;
+        try
+        {
+            var result = await _webViewService.EvaluateJavaScriptAsync("hubbly3d.startHoldNavigation('next')", _cts.Token);
+            // After a short delay, stop the hold navigation (single step)
+            await Task.Delay(500);
+            _webViewService.EvaluateJavaScriptAsync("hubbly3d.stopHoldNavigation()", _cts.Token);
+            
+            // Update selection after navigation
+            await Task.Delay(600); // Wait for animation
+            await UpdateSelectedAvatarFrom3DScene();
+        }
+        finally
+        {
+            IsHoldNavigationActive = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ShowContextMenu()
+    {
+        if (SelectedAvatar == null) return;
+
+        try
+        {
+            var page = Application.Current?.MainPage;
+            if (page == null) return;
+
+            var isCurrentUser = SelectedAvatar.UserId.ToString() == _userId;
+            var actions = new List<string>();
+
+            if (isCurrentUser)
+            {
+                actions.Add("Профиль (заглушка)");
+                actions.Add("Действие");
+            }
+            else
+            {
+                actions.Add("Профиль (заглушка)");
+            }
+
+            var action = await page.DisplayActionSheet(
+                $"Действия: {SelectedAvatar.Nickname}",
+                "Отмена",
+                null,
+                actions.ToArray());
+
+            if (action == "Профиль (заглушка)")
+            {
+                // TODO: Implement profile page
+                await page.DisplayAlert("Профиль", "Страница профиля пока не реализована", "OK");
+            }
+            else if (action == "Действие")
+            {
+                await ShowAnimationMenuAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error showing context menu");
+        }
+    }
+
+    private async Task ShowAnimationMenuAsync()
+    {
+        if (SelectedAvatar == null) return;
+
+        try
+        {
+            var page = Application.Current?.MainPage;
+            if (page == null) return;
+
+            var actions = new[] { "Плопать", "Махать" };
+            
+            var action = await page.DisplayActionSheet(
+                "Анимации",
+                "Отмена",
+                null,
+                actions);
+
+            if (!string.IsNullOrEmpty(action))
+            {
+                var animationName = action == "Плопать" ? "clap" : "wave";
+                await _webViewService.PlayAnimationAsync(SelectedAvatar.UserId.ToString(), animationName, false);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error showing animation menu");
+        }
+    }
+
+    #endregion
+
+    #region Public Methods for View
+
+    /// <summary>
+    /// Refreshes the selected avatar from 3D scene (called from View after navigation)
+    /// </summary>
+    public async Task RefreshSelectedAvatarAsync()
+    {
+        await UpdateSelectedAvatarFrom3DScene();
     }
 
     #endregion
