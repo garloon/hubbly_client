@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
 	<PropertyGroup>
-    <TargetFrameworks>net9.0-android</TargetFrameworks>
+	   <TargetFrameworks>net9.0-android</TargetFrameworks>
 		<AndroidPackageFormat>apk</AndroidPackageFormat>
 		<OutputType>Exe</OutputType>
 		<RootNamespace>Hubbly.Mobile</RootNamespace>
@@ -21,6 +21,20 @@
 		<!-- Versions -->
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
+
+		<!-- Android ABI Configuration for universal APK -->
+		<AndroidSupportedAbis>armeabi-v7a;arm64-v8a;x86;x86_64</AndroidSupportedAbis>
+		<AndroidCreatePackagePerAbi>false</AndroidCreatePackagePerAbi>
+
+		<!-- Optimization -->
+		<AndroidEnableProguard>true</AndroidEnableProguard>
+		<AndroidUseAapt2>true</AndroidUseAapt2>
+
+		<!-- Android Signing (Release configuration) -->
+		<AndroidSigningKeyStore>hubbly.keystore</AndroidSigningKeyStore>
+		<AndroidSigningKeyAlias>hubbly</AndroidSigningKeyAlias>
+		<!-- Passwords should be provided via environment variables or command line -->
+		<!-- AndroidSigningKeyPass and AndroidSigningStorePass -->
 
 		<SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
 	</PropertyGroup>
