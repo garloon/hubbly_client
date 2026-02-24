@@ -27,7 +27,7 @@
 		<AndroidCreatePackagePerAbi>false</AndroidCreatePackagePerAbi>
 
 		<!-- Optimization -->
-		<AndroidEnableProguard>true</AndroidEnableProguard>
+		<AndroidLinkTool>r8</AndroidLinkTool>
 		<AndroidUseAapt2>true</AndroidUseAapt2>
 
 		<!-- Android Signing (Release configuration) -->
