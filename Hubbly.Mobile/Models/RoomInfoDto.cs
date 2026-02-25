@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace Hubbly.Mobile.Models;
 
-public class RoomInfoDto
+public partial class RoomInfoDto
 {
     [JsonPropertyName("roomId")]
     public Guid RoomId { get; set; }

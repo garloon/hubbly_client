@@ -56,8 +56,8 @@ public class SimpleNavigationService : INavigationService, IDisposable
                     _logger.LogDebug("NavigationService: Using Shell navigation to {Route}", route);
 
                     // Check if this should be a modal navigation
-                    // Modal routes: settings, about (show as overlay without losing chat state)
-                    if (route.StartsWith("//settings") || route.StartsWith("//about"))
+                    // Modal routes: settings, about, roomselection (show as overlay without losing chat state)
+                    if (route.StartsWith("//settings") || route.StartsWith("//about") || route.StartsWith("//roomselection"))
                     {
                         _logger.LogInformation("🔍 NavigationService: Detected modal route {Route}", route);
                         
@@ -113,6 +113,7 @@ public class SimpleNavigationService : INavigationService, IDisposable
         {
             "settings" => typeof(SettingsPage),
             "about" => typeof(AboutPage),
+            "roomselection" => typeof(RoomSelectionPage),
             _ => null
         };
     }

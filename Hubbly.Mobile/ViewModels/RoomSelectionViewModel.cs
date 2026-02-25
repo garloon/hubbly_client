@@ -4,23 +4,30 @@ using Hubbly.Mobile.Models;
 using Hubbly.Mobile.Services;
 using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
+using Microsoft.Maui.Controls;
 
 namespace Hubbly.Mobile.ViewModels;
 
-public partial class RoomSelectionViewModel : ObservableObject
+public partial class RoomSelectionViewModel : ObservableObject, IQueryAttributable
 {
     private readonly RoomService _roomService;
     private readonly TokenManager _tokenManager;
+    private readonly INavigationService _navigationService;
     private readonly ILogger<RoomSelectionViewModel> _logger;
 
     [ObservableProperty]
     private ObservableCollection<RoomInfoDto> _rooms = new();
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsCurrentRoomSelected))]
+    [NotifyPropertyChangedFor(nameof(CurrentRoomButtonText))]
     private RoomInfoDto? _selectedRoom;
 
     [ObservableProperty]
     private bool _isLoading;
+
+    [ObservableProperty]
+    private bool _isJoining;
 
     [ObservableProperty]
     private string _searchText = string.Empty;
@@ -28,11 +35,57 @@ public partial class RoomSelectionViewModel : ObservableObject
     [ObservableProperty]
     private RoomInfoDto? _filteredRoom;
 
-    public RoomSelectionViewModel(RoomService roomService, TokenManager tokenManager, ILogger<RoomSelectionViewModel> logger)
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsCurrentRoomSelected))]
+    [NotifyPropertyChangedFor(nameof(CurrentRoomButtonText))]
+    private Guid? _currentRoomId;
+
+    [RelayCommand]
+    private void CloseModal()
+    {
+        _logger.LogInformation("CloseModalCommand executed");
+        CloseModalAsync().ConfigureAwait(false);
+    }
+
+    // Computed property for button text
+    public string GetRoomButtonText(RoomInfoDto room)
+    {
+        if (CurrentRoomId.HasValue && room.RoomId == CurrentRoomId.Value)
+        {
+            return "Current";
+        }
+        return "Join";
+    }
+
+    // Computed property for button enabled state
+    public bool IsRoomJoinEnabled(RoomInfoDto room)
+    {
+        return !(CurrentRoomId.HasValue && room.RoomId == CurrentRoomId.Value);
+    }
+
+    public RoomSelectionViewModel(RoomService roomService, TokenManager tokenManager,
+                                   INavigationService navigationService, ILogger<RoomSelectionViewModel> logger)
     {
         _roomService = roomService ?? throw new ArgumentNullException(nameof(roomService));
         _tokenManager = tokenManager ?? throw new ArgumentNullException(nameof(tokenManager));
+        _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    }
+
+    public void ApplyQueryAttributes(IDictionary<string, object> query)
+    {
+        if (query.TryGetValue("CurrentRoomId", out var currentRoomIdObj) && currentRoomIdObj is Guid currentRoomId)
+        {
+            CurrentRoomId = currentRoomId;
+            _logger.LogInformation("Received current room ID: {CurrentRoomId}", currentRoomId);
+            UpdateRoomCurrentFlags();
+        }
+    }
+    
+    partial void OnCurrentRoomIdChanged(Guid? oldValue, Guid? newValue)
+    {
+        // Update IsCurrent flag for all rooms when CurrentRoomId changes
+        UpdateRoomCurrentFlags();
     }
 
     [RelayCommand]
@@ -49,6 +102,8 @@ public partial class RoomSelectionViewModel : ObservableObject
             Rooms.Clear();
             foreach (var room in rooms)
             {
+                // Set IsCurrent flag for each room
+                room.IsCurrent = CurrentRoomId.HasValue && room.RoomId == CurrentRoomId.Value;
                 Rooms.Add(room);
             }
 
@@ -75,8 +130,43 @@ public partial class RoomSelectionViewModel : ObservableObject
             return;
         }
 
+        // Check if user is trying to leave current room (either same room or different)
+        if (CurrentRoomId.HasValue)
+        {
+            string message;
+            string title;
+            string confirmText;
+            
+            if (_selectedRoom.RoomId == CurrentRoomId.Value)
+            {
+                // Trying to join the same room
+                title = "Confirm Leave";
+                message = "You are already in this room. Do you want to leave and rejoin?";
+                confirmText = "Yes, Leave";
+            }
+            else
+            {
+                // Trying to join a different room
+                title = "Switch Room";
+                message = $"You are currently in another room. Do you want to leave and join '{_selectedRoom.RoomName}'?";
+                confirmText = "Yes, Switch";
+            }
+            
+            var confirm = await Application.Current.MainPage.DisplayAlert(
+                title,
+                message,
+                confirmText,
+                "Cancel");
+            
+            if (!confirm)
+                return;
+        }
+
         try
         {
+            _isJoining = true;
+            OnPropertyChanged(nameof(IsJoining));
+
             var userIdString = await _tokenManager.GetAsync("user_id");
             if (string.IsNullOrEmpty(userIdString) || !Guid.TryParse(userIdString, out var userId))
             {
@@ -85,19 +175,53 @@ public partial class RoomSelectionViewModel : ObservableObject
             }
 
             var result = await _roomService.JoinRoomAsync(_selectedRoom.RoomId);
+            
+            // Update current room ID
+            await _tokenManager.SetAsync("current_room_id", result.RoomId.ToString());
+            
             await Application.Current.MainPage.DisplayAlert(
                 "Room Joined",
                 $"Joined room: {result.RoomName}\nUsers: {result.UsersInRoom}/{result.MaxUsers}",
                 "OK");
 
-            // Navigate back to chat room
-            await Shell.Current.GoToAsync("//chatroom");
+            // Close modal and navigate back to chat
+            await CloseModalAsync();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to join room {RoomId}", _selectedRoom.RoomId);
             await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "OK");
         }
+        finally
+        {
+            _isJoining = false;
+            OnPropertyChanged(nameof(IsJoining));
+        }
+    }
+
+    private async Task CloseModalAsync()
+    {
+        _logger.LogInformation("Closing room selection modal");
+        
+        // Send message to ChatRoomViewModel to refresh room info
+        MessagingCenter.Send(this, "RoomSelectionClosed");
+        
+        // Close modal
+        if (Application.Current?.MainPage is Shell shell && shell.CurrentPage?.Navigation != null)
+        {
+            await shell.CurrentPage.Navigation.PopModalAsync();
+        }
+    }
+
+    // Computed properties for UI
+    public bool IsCurrentRoomSelected => _selectedRoom != null && CurrentRoomId.HasValue && _selectedRoom.RoomId == CurrentRoomId.Value;
+
+    public string CurrentRoomButtonText => IsCurrentRoomSelected ? "Current" : "Join";
+
+    // Method to check if a specific room is the current room (for XAML binding)
+    public bool IsRoomCurrent(Guid roomId)
+    {
+        return CurrentRoomId.HasValue && roomId == CurrentRoomId.Value;
     }
 
     [RelayCommand]
@@ -138,6 +262,18 @@ public partial class RoomSelectionViewModel : ObservableObject
             (r.Description?.ToLowerInvariant().Contains(lowerValue) == true));
 
         FilteredRoom = match;
+    }
+
+    private void UpdateRoomCurrentFlags()
+    {
+        // Update IsCurrent flag for all rooms in the collection
+        foreach (var room in Rooms)
+        {
+            room.IsCurrent = CurrentRoomId.HasValue && room.RoomId == CurrentRoomId.Value;
+        }
+        
+        // Notify that rooms collection changed to update UI
+        OnPropertyChanged(nameof(Rooms));
     }
 
     public async Task InitializeAsync()

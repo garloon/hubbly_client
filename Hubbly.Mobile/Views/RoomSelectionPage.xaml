@@ -17,6 +17,8 @@
             <converters:StringNotEmptyConverter x:Key="StringNotEmptyConverter" />
             <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
             <converters:LoadingStatusConverter x:Key="LoadingStatusConverter" />
+            <converters:RoomIsCurrentConverter x:Key="RoomIsCurrentConverter" />
+            <converters:BoolToTextConverter x:Key="BoolToTextConverter" />
         </ResourceDictionary>
     </ContentPage.Resources>
 
@@ -29,7 +31,7 @@
               ColumnDefinitions="Auto,*,Auto"
               VerticalOptions="Center">
             
-            <!-- Back Button -->
+            <!-- Close Button -->
             <Frame Grid.Column="0"
                    Padding="0"
                    BackgroundColor="Transparent"
@@ -37,12 +39,12 @@
                    HeightRequest="44"
                    CornerRadius="22"
                    HasShadow="False">
-                <Button Text="←"
+                <Button Text="✕"
                         FontSize="20"
                         TextColor="{DynamicResource TextColor}"
                         BackgroundColor="Transparent"
                         BorderWidth="0"
-                        Command="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Path=GoBackCommand}"
+                        Command="{Binding CloseModalCommand}"
                         HorizontalOptions="Center"
                         VerticalOptions="Center" />
             </Frame>
@@ -112,7 +114,8 @@
                                 SelectionMode="Single"
                                 SelectedItem="{Binding SelectedRoom}"
                                 IsVisible="{Binding IsLoading, Converter={StaticResource InverseBoolConverter}}"
-                                Margin="0,16,0,0">
+                                Margin="0,16,0,0"
+                                x:Name="RoomsCollectionView">
                     
                     <CollectionView.ItemsLayout>
                         <LinearItemsLayout Orientation="Vertical" />
@@ -120,12 +123,22 @@
 
                     <CollectionView.ItemTemplate>
                         <DataTemplate x:DataType="models:RoomInfoDto">
-                            <Frame BackgroundColor="{DynamicResource CardBackgroundColor}"
+                            <Frame x:Name="RoomFrame"
+                                   BackgroundColor="{DynamicResource CardBackgroundColor}"
                                    BorderColor="{DynamicResource BorderColor}"
                                    CornerRadius="8"
                                    HasShadow="False"
                                    Padding="{StaticResource SpacingMd}"
                                    Margin="0,0,0,8">
+                                <!-- Highlight current room -->
+                                <Frame.Triggers>
+                                    <DataTrigger TargetType="Frame"
+                                                 Binding="{Binding IsCurrent}"
+                                                 Value="True">
+                                        <Setter Property="BackgroundColor" Value="{DynamicResource PrimaryColor}" />
+                                        <Setter Property="BorderColor" Value="{DynamicResource PrimaryColor}" />
+                                    </DataTrigger>
+                                </Frame.Triggers>
                                 <Grid ColumnDefinitions="Auto,*,Auto"
                                       RowSpacing="{StaticResource SpacingXs}">
                                     
@@ -168,24 +181,35 @@
                                         </HorizontalStackLayout>
                                     </VerticalStackLayout>
 
-                                    <!-- Join Button -->
-                                    <Frame Grid.Column="2"
-                                           Padding="0"
-                                           BackgroundColor="{DynamicResource PrimaryColor}"
-                                           WidthRequest="60"
-                                           HeightRequest="32"
-                                           CornerRadius="16"
-                                           HasShadow="False"
-                                           VerticalOptions="Center">
-                                        <Button Text="Join"
-                                                FontSize="12"
-                                                TextColor="White"
-                                                BackgroundColor="Transparent"
-                                                BorderWidth="0"
-                                                Command="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Path=SelectRoomCommand}"
-                                                HorizontalOptions="Center"
-                                                VerticalOptions="Center" />
-                                    </Frame>
+                                    <!-- Action Button -->
+                                    <Grid Grid.Column="2"
+                                          WidthRequest="60"
+                                          HeightRequest="32"
+                                          VerticalOptions="Center">
+                                        <Frame Padding="0"
+                                               BackgroundColor="{Binding IsCurrentRoomSelected, Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Converter={StaticResource InverseBoolConverter}}"
+                                               CornerRadius="16"
+                                               HasShadow="False"
+                                               VerticalOptions="Center"
+                                               HorizontalOptions="Center">
+                                            <Button x:Name="JoinButton"
+                                                    Text="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Path=CurrentRoomButtonText}"
+                                                    FontSize="12"
+                                                    TextColor="White"
+                                                    BackgroundColor="Transparent"
+                                                    BorderWidth="0"
+                                                    Command="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Path=SelectRoomCommand}"
+                                                    HorizontalOptions="Center"
+                                                    VerticalOptions="Center"
+                                                    IsEnabled="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Path=IsCurrentRoomSelected, Converter={StaticResource InverseBoolConverter}}" />
+                                        </Frame>
+                                        <ActivityIndicator x:Name="JoiningIndicator"
+                                                           IsRunning="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Path=IsJoining}"
+                                                           Color="{DynamicResource PrimaryColor}"
+                                                           HorizontalOptions="Center"
+                                                           VerticalOptions="Center"
+                                                           IsVisible="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Path=IsJoining}" />
+                                    </Grid>
                                 </Grid>
                             </Frame>
                         </DataTemplate>

@@ -139,6 +139,13 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         // Subscribe to SignalR events
         InitializeSignalREvents();
 
+        // Subscribe to room selection closed message
+        MessagingCenter.Subscribe<RoomSelectionViewModel>(this, "RoomSelectionClosed", async (sender) =>
+        {
+            _logger.LogInformation("Received RoomSelectionClosed message, refreshing room info");
+            await RefreshRoomInfoAsync();
+        });
+
         _logger.LogInformation("ChatRoomViewModel created");
     }
 
@@ -266,6 +273,47 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error unsubscribing from SignalR events");
+        }
+    }
+
+    private void UnsubscribeMessagingCenter()
+    {
+        try
+        {
+            _logger.LogInformation("Unsubscribing from MessagingCenter");
+            MessagingCenter.Unsubscribe<RoomSelectionViewModel>(this, "RoomSelectionClosed");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error unsubscribing from MessagingCenter");
+        }
+    }
+
+    #endregion
+
+    #region Room Refresh
+
+    private async Task RefreshRoomInfoAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Refreshing room info after room selection");
+            
+            // Get current room ID from token manager
+            var currentRoomIdStr = await _tokenManager.GetAsync("current_room_id");
+            if (!string.IsNullOrEmpty(currentRoomIdStr) && Guid.TryParse(currentRoomIdStr, out var currentRoomId))
+            {
+                _logger.LogInformation("Joining current room: {RoomId}", currentRoomId);
+                await JoinRoomCommand.ExecuteAsync(currentRoomId);
+            }
+            else
+            {
+                _logger.LogInformation("No current room set, skipping refresh");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error refreshing room info");
         }
     }
 
@@ -1519,6 +1567,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         _presenceDebouncer.Dispose();
 
         UnsubscribeSignalREvents();
+        UnsubscribeMessagingCenter();
 
         _processedUserIds.Clear();
         Messages.Clear();

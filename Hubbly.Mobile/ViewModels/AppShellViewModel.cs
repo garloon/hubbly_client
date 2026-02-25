@@ -155,8 +155,22 @@ public partial class AppShellViewModel : ObservableObject, IDisposable
     private async Task OpenRoomSelection()
     {
         _logger.LogInformation("🔰 AppShellViewModel: OpenRoomSelectionCommand executed");
-        await _navigationService.NavigateToAsync("//roomselection");
-        await _navigationService.NavigateToAsync("//chat");
+        
+        // Get current room ID from TokenManager
+        var currentRoomId = await _tokenManager.GetAsync("current_room_id");
+        Guid? currentRoomGuid = null;
+        if (!string.IsNullOrEmpty(currentRoomId) && Guid.TryParse(currentRoomId, out var guid))
+        {
+            currentRoomGuid = guid;
+        }
+        
+        // Navigate modally with current room parameter
+        var parameters = new Dictionary<string, object>
+        {
+            { "CurrentRoomId", currentRoomGuid }
+        };
+        
+        await _navigationService.NavigateToAsync("//roomselection", parameters);
     }
 
     public void Dispose()

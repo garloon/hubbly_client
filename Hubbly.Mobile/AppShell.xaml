@@ -240,16 +240,6 @@
             Route="chat" />
     </FlyoutItem>
 
-    <!-- Room Selection Menu Item -->
-    <FlyoutItem Title="Select Room"
-                Icon="🚪"
-                Route="roomselection"
-                FlyoutDisplayOptions="AsMultipleItems">
-        <ShellContent
-            ContentTemplate="{DataTemplate views:RoomSelectionPage}"
-            Route="roomselection" />
-    </FlyoutItem>
-
     <!-- Logout Menu Item -->
     <MenuItem Text="{Binding LogoutTitle}"
               Command="{Binding LogoutCommand}"
@@ -260,5 +250,7 @@
               Command="{Binding OpenSettingsCommand}" />
     <MenuItem Text="{Binding AboutTitle}"
               Command="{Binding OpenAboutCommand}" />
+    <MenuItem Text="Select Room"
+              Command="{Binding OpenRoomSelectionCommand}" />
 
 </Shell>
