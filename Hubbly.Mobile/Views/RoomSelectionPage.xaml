@@ -187,21 +187,22 @@
                                           HeightRequest="32"
                                           VerticalOptions="Center">
                                         <Frame Padding="0"
-                                               BackgroundColor="{Binding IsCurrentRoomSelected, Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Converter={StaticResource InverseBoolConverter}}"
+                                               BackgroundColor="{Binding IsCurrent, Converter={StaticResource InverseBoolConverter}}"
                                                CornerRadius="16"
                                                HasShadow="False"
                                                VerticalOptions="Center"
                                                HorizontalOptions="Center">
                                             <Button x:Name="JoinButton"
-                                                    Text="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Path=CurrentRoomButtonText}"
+                                                    Text="{Binding ButtonText}"
                                                     FontSize="12"
                                                     TextColor="White"
                                                     BackgroundColor="Transparent"
                                                     BorderWidth="0"
                                                     Command="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Path=SelectRoomCommand}"
+                                                    CommandParameter="{Binding .}"
                                                     HorizontalOptions="Center"
                                                     VerticalOptions="Center"
-                                                    IsEnabled="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Path=IsCurrentRoomSelected, Converter={StaticResource InverseBoolConverter}}" />
+                                                    IsEnabled="{Binding IsCurrent, Converter={StaticResource InverseBoolConverter}}" />
                                         </Frame>
                                         <ActivityIndicator x:Name="JoiningIndicator"
                                                            IsRunning="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Path=IsJoining}"

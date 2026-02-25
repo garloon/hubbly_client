@@ -102,8 +102,9 @@ public partial class RoomSelectionViewModel : ObservableObject, IQueryAttributab
             Rooms.Clear();
             foreach (var room in rooms)
             {
-                // Set IsCurrent flag for each room
+                // Set IsCurrent flag and ButtonText for each room
                 room.IsCurrent = CurrentRoomId.HasValue && room.RoomId == CurrentRoomId.Value;
+                room.ButtonText = room.IsCurrent ? "Current" : "Join";
                 Rooms.Add(room);
             }
 
@@ -122,9 +123,12 @@ public partial class RoomSelectionViewModel : ObservableObject, IQueryAttributab
     }
 
     [RelayCommand]
-    private async Task SelectRoomAsync()
+    private async Task SelectRoomAsync(RoomInfoDto? room)
     {
-        if (_selectedRoom == null)
+        // Use parameter if provided, otherwise fall back to _selectedRoom (for backward compatibility)
+        var targetRoom = room ?? _selectedRoom;
+        
+        if (targetRoom == null)
         {
             await Application.Current.MainPage.DisplayAlert("Error", "Please select a room", "OK");
             return;
@@ -137,7 +141,7 @@ public partial class RoomSelectionViewModel : ObservableObject, IQueryAttributab
             string title;
             string confirmText;
             
-            if (_selectedRoom.RoomId == CurrentRoomId.Value)
+            if (targetRoom.RoomId == CurrentRoomId.Value)
             {
                 // Trying to join the same room
                 title = "Confirm Leave";
@@ -148,7 +152,7 @@ public partial class RoomSelectionViewModel : ObservableObject, IQueryAttributab
             {
                 // Trying to join a different room
                 title = "Switch Room";
-                message = $"You are currently in another room. Do you want to leave and join '{_selectedRoom.RoomName}'?";
+                message = $"You are currently in another room. Do you want to leave and join '{targetRoom.RoomName}'?";
                 confirmText = "Yes, Switch";
             }
             
@@ -174,7 +178,7 @@ public partial class RoomSelectionViewModel : ObservableObject, IQueryAttributab
                 return;
             }
 
-            var result = await _roomService.JoinRoomAsync(_selectedRoom.RoomId);
+            var result = await _roomService.JoinRoomAsync(targetRoom.RoomId);
             
             // Update current room ID
             await _tokenManager.SetAsync("current_room_id", result.RoomId.ToString());
@@ -189,7 +193,7 @@ public partial class RoomSelectionViewModel : ObservableObject, IQueryAttributab
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to join room {RoomId}", _selectedRoom.RoomId);
+            _logger.LogError(ex, "Failed to join room {RoomId}", targetRoom.RoomId);
             await Application.Current.MainPage.DisplayAlert("Error", ex.Message, "OK");
         }
         finally
@@ -266,10 +270,11 @@ public partial class RoomSelectionViewModel : ObservableObject, IQueryAttributab
 
     private void UpdateRoomCurrentFlags()
     {
-        // Update IsCurrent flag for all rooms in the collection
+        // Update IsCurrent flag and ButtonText for all rooms in the collection
         foreach (var room in Rooms)
         {
             room.IsCurrent = CurrentRoomId.HasValue && room.RoomId == CurrentRoomId.Value;
+            room.ButtonText = room.IsCurrent ? "Current" : "Join";
         }
         
         // Notify that rooms collection changed to update UI

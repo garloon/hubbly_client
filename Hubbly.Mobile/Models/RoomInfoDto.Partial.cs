@@ -12,4 +12,10 @@ public partial class RoomInfoDto
     /// </summary>
     [JsonIgnore]
     public bool IsCurrent { get; set; }
+    
+    /// <summary>
+    /// Text to display on the join/current button for this room
+    /// </summary>
+    [JsonIgnore]
+    public string ButtonText { get; set; } = "Join";
 }
