@@ -217,7 +217,8 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             _signalRService.OnConnectionStateChanged += OnConnectionStateChanged;
             _signalRService.OnUserPlayAnimation += OnUserPlayAnimation;
 
-            _webViewService.OnAvatarClicked += OnAvatarClicked;
+            // DISABLED: Avatar click events - using MAUI controls only
+            // _webViewService.OnAvatarClicked += OnAvatarClicked;
             _webViewService.OnSceneReady += OnSceneReady;
             _webViewService.OnSceneError += OnSceneError;
         }
@@ -244,7 +245,8 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             _signalRService.OnConnectionStateChanged -= OnConnectionStateChanged;
             _signalRService.OnUserPlayAnimation -= OnUserPlayAnimation;
 
-            _webViewService.OnAvatarClicked -= OnAvatarClicked;
+            // DISABLED: Avatar click events - using MAUI controls only
+            // _webViewService.OnAvatarClicked -= OnAvatarClicked;
             _webViewService.OnSceneReady -= OnSceneReady;
             _webViewService.OnSceneError -= OnSceneError;
         }
