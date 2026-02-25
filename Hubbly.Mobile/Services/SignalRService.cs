@@ -324,7 +324,7 @@ public class SignalRService : IDisposable
         }
     }
 
-    public async Task SendAnimationAsync(string animationType)
+    public async Task SendAnimationAsync(string animationType, string? targetUserId = null)
     {
         if (string.IsNullOrWhiteSpace(animationType))
             return;
@@ -340,8 +340,8 @@ public class SignalRService : IDisposable
         {
             if (_hubConnection?.State == HubConnectionState.Connected && _isConnected)
             {
-                _logger.LogInformation($"SignalR: Sending animation: {animationType}");
-                await _hubConnection.InvokeAsync("SendAnimation", animationType, _cts.Token);
+                _logger.LogInformation($"SignalR: Sending animation: {animationType}, target: {targetUserId ?? "self"}");
+                await _hubConnection.InvokeAsync("SendAnimation", animationType, targetUserId, _cts.Token);
             }
             else
             {

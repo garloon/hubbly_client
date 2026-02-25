@@ -458,8 +458,9 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
 
         try
         {
+            // Send to all users (including self) via SignalR
             _logger.LogInformation("Sending animation: {AnimationType}", animationType);
-            await _signalRService.SendAnimationAsync(animationType);
+            await _signalRService.SendAnimationAsync(animationType, null);
         }
         catch (Exception ex)
         {
@@ -679,13 +680,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                 return;
             }
 
-            // Don't play animation for current user (they already played it locally)
-            if (data.userId == _userId)
-            {
-                _logger.LogDebug("Skipping animation for self");
-                return;
-            }
-
+            // Always play animation for the target user (including self)
             MainThread.BeginInvokeOnMainThread(async () =>
             {
                 try
@@ -1768,7 +1763,21 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             if (!string.IsNullOrEmpty(action))
             {
                 var animationName = action == "Плопать" ? "clap" : "wave";
-                await _webViewService.PlayAnimationAsync(SelectedAvatar.UserId.ToString(), animationName, false);
+                var targetUserId = SelectedAvatar.UserId.ToString();
+                var isSelf = targetUserId == _userId;
+
+                if (isSelf)
+                {
+                    // For self: send with targetUserId = null (server will use caller's userId)
+                    _logger.LogInformation("Sending animation for self: {AnimationType}", animationName);
+                    await _signalRService.SendAnimationAsync(animationName, null);
+                }
+                else
+                {
+                    // For another user: send with their userId as target
+                    _logger.LogInformation("Sending animation for other user: {UserId}", targetUserId);
+                    await _signalRService.SendAnimationAsync(animationName, targetUserId);
+                }
             }
         }
         catch (Exception ex)
