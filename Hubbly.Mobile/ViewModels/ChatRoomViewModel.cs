@@ -214,6 +214,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             _signalRService.OnErrorReceived += OnErrorReceived;
             _signalRService.OnAuthenticationFailed += OnAuthenticationFailed;
             _signalRService.OnConnectionStateChanged += OnConnectionStateChanged;
+            _signalRService.OnUserPlayAnimation += OnUserPlayAnimation;
 
             _webViewService.OnAvatarClicked += OnAvatarClicked;
             _webViewService.OnSceneReady += OnSceneReady;
@@ -240,6 +241,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             _signalRService.OnErrorReceived -= OnErrorReceived;
             _signalRService.OnAuthenticationFailed -= OnAuthenticationFailed;
             _signalRService.OnConnectionStateChanged -= OnConnectionStateChanged;
+            _signalRService.OnUserPlayAnimation -= OnUserPlayAnimation;
 
             _webViewService.OnAvatarClicked -= OnAvatarClicked;
             _webViewService.OnSceneReady -= OnSceneReady;
@@ -659,6 +661,55 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error handling user left");
+        }
+    }
+
+    private void OnUserPlayAnimation(object? sender, (string userId, string animationType) data)
+    {
+        try
+        {
+            _logger.LogInformation("User {UserId} played animation {AnimationType}",
+                data.userId, data.animationType);
+
+            // Skip if 3D is disabled
+            if (!Is3DEnabled || !_webViewService.IsSceneReady)
+            {
+                _logger.LogDebug("3D scene not ready, skipping animation");
+                return;
+            }
+
+            // Don't play animation for current user (they already played it locally)
+            if (data.userId == _userId)
+            {
+                _logger.LogDebug("Skipping animation for self");
+                return;
+            }
+
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                try
+                {
+                    var success = await _webViewService.PlayAnimationAsync(data.userId, data.animationType, false);
+                    if (success)
+                    {
+                        _logger.LogDebug("✅ Played animation {AnimationType} for user {UserId}",
+                            data.animationType, data.userId);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("❌ Failed to play animation {AnimationType} for user {UserId}",
+                            data.animationType, data.userId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error playing animation for user {UserId}", data.userId);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling user play animation");
         }
     }
 

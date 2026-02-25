@@ -57,6 +57,7 @@ public class SignalRService : IDisposable
     public event EventHandler OnAuthenticationFailed;
     public event EventHandler<ConnectionStateChangedEventArgs> OnConnectionStateChanged;
     public event EventHandler<string> OnDebugMessage;
+    public event EventHandler<(string userId, string animationType)> OnUserPlayAnimation;
 
     // Properties
     public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected && _isConnected;
@@ -796,18 +797,9 @@ public class SignalRService : IDisposable
         try
         {
             _logger.LogInformation($"SignalR: User {userId} played animation {animationType}");
-
-            MainThread.BeginInvokeOnMainThread(async () =>
-            {
-                try
-                {
-                    await _webViewService.PlayAnimationAsync(userId, animationType, false);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error playing animation");
-                }
-            });
+            
+            // Raise event for ViewModels to handle
+            OnUserPlayAnimation?.Invoke(this, (userId, animationType));
         }
         catch (Exception ex)
         {
