@@ -24,6 +24,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
     private readonly SemaphoreSlim _avatarLock = new(1, 1);
     private readonly SemaphoreSlim _messageLock = new(1, 1);
+    private readonly SemaphoreSlim _syncLock = new(1, 1); // For sync/update operations
     private readonly CancellationTokenSource _cts = new();
     private readonly HashSet<string> _processedUserIds = new();
     private readonly Debouncer _typingDebouncer;
@@ -600,8 +601,8 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                 // Add to 3D scene
                 await Ensure3DAvatarPresence(userData.UserId, userData.Nickname, gender);
                 
-                // Sync avatars from 3D scene to ensure consistency
-                await SyncAvatarsFrom3DScene();
+                // Sync avatars from 3D scene and update selection
+                await SyncAvatarsAndUpdateSelection();
             });
         }
         catch (Exception ex)
@@ -654,8 +655,8 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                     await SelectFallbackAvatarAsync();
                 }
 
-                // Sync avatars from 3D scene to ensure consistency
-                await SyncAvatarsFrom3DScene();
+                // Sync avatars from 3D scene and update selection
+                await SyncAvatarsAndUpdateSelection();
             });
         }
         catch (Exception ex)
@@ -941,8 +942,8 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         _ = Task.Run(async () =>
         {
             await Task.Delay(1000); // Wait for initial avatars to load
-            _logger.LogInformation("OnSceneReady: Calling SyncAvatarsFrom3DScene");
-            await SyncAvatarsFrom3DScene();
+            _logger.LogInformation("OnSceneReady: Calling SyncAvatarsAndUpdateSelection");
+            await SyncAvatarsAndUpdateSelection();
         });
     }
 
@@ -1010,6 +1011,22 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             if (success)
             {
                 _logger.LogInformation("✅ Self added to 3D scene: {Nickname}", nickname);
+                
+                // Auto-select current user's avatar and center camera
+                _logger.LogInformation("Auto-selecting self avatar: {UserId}", userId);
+                var selectSuccess = await _webViewService.SelectAvatarAsync(userId);
+                if (selectSuccess)
+                {
+                    _logger.LogInformation("✅ Camera centered on self");
+                    // Wait for camera animation to complete
+                    await Task.Delay(300, _cts.Token);
+                    // Update selected avatar from 3D scene
+                    await SyncAvatarsAndUpdateSelection();
+                }
+                else
+                {
+                    _logger.LogWarning("❌ Failed to center camera on self");
+                }
             }
             else
             {
@@ -1429,6 +1446,14 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             var avatarPresence = OnlineAvatars.FirstOrDefault(a => a.UserId == avatarGuid);
             _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: Found in OnlineAvatars: {Found}", avatarPresence != null);
 
+            // FALLBACK: If avatar not found in OnlineAvatars, try to select current user or first available
+            if (avatarPresence == null && OnlineAvatars.Any())
+            {
+                _logger.LogWarning("UpdateSelectedAvatarFrom3DScene: Avatar not found in OnlineAvatars, using fallback");
+                avatarPresence = OnlineAvatars.FirstOrDefault(a => a.IsCurrentUser) ?? OnlineAvatars.First();
+                _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: Fallback selected: {Nickname}", avatarPresence.Nickname);
+            }
+
             // Get all avatars from 3D scene
             _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: Calling hubbly3d.getAvatars()");
             var allAvatarsJson = await _webViewService.EvaluateJavaScriptAsync("hubbly3d.getAvatars()", _cts.Token);
@@ -1468,12 +1493,14 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                     _logger.LogWarning("UpdateSelectedAvatarFrom3DScene: avatarPresence is null, hiding panel");
                 }
 
-                if (allAvatarsData != null && allAvatarsData.Count > 1)
+                // Simplified navigation logic based on SelectedAvatar slot position
+                if (SelectedAvatar != null && allAvatarsData != null && allAvatarsData.Count > 1)
                 {
-                    var currentSlot = avatarData.SlotIndex;
+                    var currentSlot = allAvatarsData.FirstOrDefault(a => a.UserId == SelectedAvatar.UserId.ToString())?.SlotIndex ?? 0;
                     CanNavigateLeft = allAvatarsData.Any(a => a.SlotIndex < currentSlot);
                     CanNavigateRight = allAvatarsData.Any(a => a.SlotIndex > currentSlot);
-                    _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: Navigation - Left: {Left}, Right: {Right}", CanNavigateLeft, CanNavigateRight);
+                    _logger.LogInformation("UpdateSelectedAvatarFrom3DScene: Navigation - Left: {Left}, Right: {Right}, Slot: {Slot}",
+                        CanNavigateLeft, CanNavigateRight, currentSlot);
                 }
                 else
                 {
@@ -1485,6 +1512,42 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error updating selected avatar from 3D scene");
+        }
+    }
+
+    /// <summary>
+    /// Synchronizes avatars list with 3D scene and updates selection atomically
+    /// </summary>
+    private async Task SyncAvatarsAndUpdateSelection()
+    {
+        await _syncLock.WaitAsync(_cts.Token);
+        try
+        {
+            _logger.LogInformation("SyncAvatarsAndUpdateSelection started");
+            
+            await SyncAvatarsFrom3DScene();
+            
+            // Ensure we have a selected avatar after sync
+            if (SelectedAvatar == null && OnlineAvatars.Any())
+            {
+                var fallback = OnlineAvatars.FirstOrDefault(a => a.IsCurrentUser) ?? OnlineAvatars.First();
+                _logger.LogWarning("SyncAvatarsAndUpdateSelection: No selected avatar, fallback to {Nickname}", fallback.Nickname);
+                
+                // Center camera on fallback avatar
+                var userId = fallback.UserId.ToString();
+                var selectSuccess = await _webViewService.SelectAvatarAsync(userId);
+                if (selectSuccess)
+                {
+                    await Task.Delay(200, _cts.Token);
+                }
+            }
+            
+            await UpdateSelectedAvatarFrom3DScene();
+            _logger.LogInformation("SyncAvatarsAndUpdateSelection completed");
+        }
+        finally
+        {
+            _syncLock.Release();
         }
     }
 
@@ -1562,13 +1625,11 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             });
 
             _logger.LogInformation("SyncAvatarsFrom3DScene: OnlineAvatars count after sync: {Count}", OnlineAvatars.Count);
-
-            // After sync, update selected avatar
-            await UpdateSelectedAvatarFrom3DScene();
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error syncing avatars from 3D scene");
+            throw; // Re-throw for caller
         }
     }
 
@@ -1596,10 +1657,10 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             _logger.LogInformation("NavigateLeft: Calling hubbly3d.stopHoldNavigation()");
             _ = _webViewService.EvaluateJavaScriptAsync("hubbly3d.stopHoldNavigation()", _cts.Token);
             
-            // Update selection after navigation
+            // Sync and update selection after navigation
             await Task.Delay(600); // Wait for animation
-            _logger.LogInformation("NavigateLeft: Updating selected avatar from 3D scene");
-            await UpdateSelectedAvatarFrom3DScene();
+            _logger.LogInformation("NavigateLeft: Syncing avatars and updating selection");
+            await SyncAvatarsAndUpdateSelection();
         }
         finally
         {
@@ -1631,10 +1692,10 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             _logger.LogInformation("NavigateRight: Calling hubbly3d.stopHoldNavigation()");
             _ = _webViewService.EvaluateJavaScriptAsync("hubbly3d.stopHoldNavigation()", _cts.Token);
             
-            // Update selection after navigation
+            // Sync and update selection after navigation
             await Task.Delay(600); // Wait for animation
-            _logger.LogInformation("NavigateRight: Updating selected avatar from 3D scene");
-            await UpdateSelectedAvatarFrom3DScene();
+            _logger.LogInformation("NavigateRight: Syncing avatars and updating selection");
+            await SyncAvatarsAndUpdateSelection();
         }
         finally
         {
@@ -1725,7 +1786,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     /// </summary>
     public async Task RefreshSelectedAvatarAsync()
     {
-        await UpdateSelectedAvatarFrom3DScene();
+        await SyncAvatarsAndUpdateSelection();
     }
 
     #endregion

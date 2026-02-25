@@ -287,6 +287,69 @@ public class WebViewService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Centers camera on specified avatar (selects avatar)
+    /// </summary>
+    public async Task<bool> SelectAvatarAsync(string userId)
+    {
+        ThrowIfDisposed();
+
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogError("SelectAvatarAsync: userId is empty");
+            return false;
+        }
+
+        if (!_isSceneReady)
+        {
+            _logger.LogWarning($"SelectAvatarAsync: Scene not ready, cannot select avatar {userId}");
+            return false;
+        }
+
+        try
+        {
+            var safeUserId = EscapeJsString(userId);
+
+            var js = $@"
+                (function() {{
+                    try {{
+                        if (!window.hubbly3d || !window.hubbly3d.centerOnAvatar) {{
+                            return 'API_NOT_AVAILABLE';
+                        }}
+                        var result = window.hubbly3d.centerOnAvatar('{safeUserId}');
+                        return result ? 'SELECTED' : 'NOT_FOUND';
+                    }} catch(e) {{
+                        return 'ERROR: ' + e.message;
+                    }}
+                }})();
+            ";
+
+            var result = await EvaluateJavaScriptAsync(js, _cts.Token);
+            var success = result == "SELECTED";
+
+            if (success)
+            {
+                _logger.LogInformation($"✅ WebViewService: Selected avatar {userId}");
+            }
+            else
+            {
+                _logger.LogWarning($"❌ WebViewService: Failed to select avatar {userId}: {result}");
+            }
+
+            return success;
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("SelectAvatarAsync cancelled");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "SelectAvatarAsync failed for user {UserId}", userId);
+            return false;
+        }
+    }
+
     public async Task<bool> StopAnimationAsync(string userId)
     {
         ThrowIfDisposed();
