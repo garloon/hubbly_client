@@ -9,6 +9,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Linq;
 using static Hubbly.Mobile.Services.SignalRService;
 
 namespace Hubbly.Mobile.ViewModels;
@@ -21,6 +22,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     private readonly INavigationService _navigationService;
     private readonly TokenManager _tokenManager;
     private readonly AuthService _authService;
+    private readonly RoomService _roomService;
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
     private readonly SemaphoreSlim _avatarLock = new(1, 1);
     private readonly SemaphoreSlim _messageLock = new(1, 1);
@@ -104,12 +106,22 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     [ObservableProperty]
     private bool _isHoldNavigationActive = false;
 
+    [ObservableProperty]
+    private ObservableCollection<RoomInfoDto> _rooms = new();
+
+    [ObservableProperty]
+    private bool _isRoomListVisible = false;
+
+    [ObservableProperty]
+    private RoomInfoDto? _selectedRoom;
+
     public ChatRoomViewModel(
         SignalRService signalRService,
         WebViewService webViewService,
         INavigationService navigationService,
         TokenManager tokenManager,
         AuthService authService,
+        RoomService roomService,
         ILogger<ChatRoomViewModel> logger)
     {
         _signalRService = signalRService ?? throw new ArgumentNullException(nameof(signalRService));
@@ -117,6 +129,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
         _tokenManager = tokenManager ?? throw new ArgumentNullException(nameof(tokenManager));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
+        _roomService = roomService ?? throw new ArgumentNullException(nameof(roomService));
 
         _logger = logger;
 
@@ -506,9 +519,179 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
 
         if (confirm)
         {
+            // Try to leave room via API if authenticated
+            // In MAUI, we check if user has a token (non-empty userId means authenticated)
+            if (!string.IsNullOrEmpty(_userId))
+            {
+                try
+                {
+                    var currentRoomId = await _tokenManager.GetAsync("last_room_id");
+                    if (!string.IsNullOrEmpty(currentRoomId) && Guid.TryParse(currentRoomId, out var roomGuid))
+                    {
+                        await _roomService.LeaveRoomAsync(roomGuid);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to leave room via API");
+                }
+            }
+
             await DisconnectFromChat();
             await _navigationService.GoBackAsync();
         }
+    }
+
+    [RelayCommand]
+    private async Task LoadRooms()
+    {
+        try
+        {
+            _logger.LogInformation("Loading rooms list...");
+            var rooms = await _roomService.GetRoomsAsync(_cts.Token);
+            
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                Rooms.Clear();
+                foreach (var room in rooms)
+                {
+                    Rooms.Add(room);
+                }
+                _logger.LogInformation("Loaded {Count} rooms", rooms.Count());
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load rooms");
+        }
+    }
+
+    [RelayCommand]
+    private async Task CreateRoom()
+    {
+        try
+        {
+            var name = await Shell.Current.DisplayPromptAsync(
+                "Create Room",
+                "Room name:",
+                "Create",
+                "Cancel",
+                "New Room",
+                3,
+                Keyboard.Text);
+
+            if (string.IsNullOrWhiteSpace(name))
+                return;
+
+            IsBusy = true;
+            var result = await _roomService.CreateRoomAsync(name.Trim());
+
+            if (result != null)
+            {
+                _logger.LogInformation("Room created: {RoomName} (ID: {RoomId})", result.RoomName, result.RoomId);
+                
+                // Auto-join the created room
+                await JoinRoomCommand.ExecuteAsync(result.RoomId);
+                
+                await Shell.Current.DisplayAlert(
+                    "Success",
+                    $"Room '{result.RoomName}' created!",
+                    "OK");
+            }
+            else
+            {
+                await Shell.Current.DisplayAlert(
+                    "Error",
+                    "Failed to create room",
+                    "OK");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating room");
+            await Shell.Current.DisplayAlert(
+                "Error",
+                $"Failed to create room: {ex.Message}",
+                "OK");
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task JoinRoom(Guid roomId)
+    {
+        try
+        {
+            _logger.LogInformation("Joining room {RoomId}", roomId);
+            
+            // Get room details first
+            var room = await _roomService.GetRoomAsync(roomId);
+            if (room == null)
+            {
+                await Shell.Current.DisplayAlert(
+                    "Error",
+                    "Room not found",
+                    "OK");
+                return;
+            }
+
+            // Call JoinRoomAsync API
+            var result = await _roomService.JoinRoomAsync(roomId);
+            if (result == null)
+            {
+                await Shell.Current.DisplayAlert(
+                    "Error",
+                    "Failed to join room",
+                    "OK");
+                return;
+            }
+
+            // Update room info
+            RoomName = result.RoomName;
+            UsersInRoom = result.UsersInRoom;
+            MaxUsers = result.MaxUsers;
+            RoomStatus = $"{result.UsersInRoom}/{result.MaxUsers}";
+
+            // Save last room ID for returning users
+            await _tokenManager.SetAsync("last_room_id", roomId.ToString());
+
+            _logger.LogInformation("Successfully joined room {RoomName}", result.RoomName);
+            
+            // Hide room list
+            IsRoomListVisible = false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error joining room {RoomId}", roomId);
+            await Shell.Current.DisplayAlert(
+                "Error",
+                $"Failed to join room: {ex.Message}",
+                "OK");
+        }
+    }
+
+    [RelayCommand]
+    private async Task ShowRoomList()
+    {
+        try
+        {
+            IsBusy = true;
+            await LoadRoomsCommand.ExecuteAsync(null);
+            IsRoomListVisible = true;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task HideRoomList()
+    {
+        IsRoomListVisible = false;
     }
 
     [RelayCommand]
@@ -1234,8 +1417,26 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                 return;
             }
 
+            // Загрузить список комнат для авторизованных пользователей
+            // In MAUI, check if user has a token (non-empty userId means authenticated)
+            if (!string.IsNullOrEmpty(_userId))
+            {
+                await LoadRoomsCommand.ExecuteAsync(null);
+            }
+
             // Всегда пытаемся подключиться при появлении страницы
             await ConnectToChat();
+
+            // После подключения - присоединиться к последней комнате (если есть)
+            if (IsConnected && !string.IsNullOrEmpty(_userId))
+            {
+                var lastRoomId = await _tokenManager.GetAsync("last_room_id");
+                if (!string.IsNullOrEmpty(lastRoomId) && Guid.TryParse(lastRoomId, out var roomGuid))
+                {
+                    _logger.LogInformation("Auto-joining last room: {RoomId}", roomGuid);
+                    await JoinRoomCommand.ExecuteAsync(roomGuid);
+                }
+            }
         }
         catch (Exception ex)
         {

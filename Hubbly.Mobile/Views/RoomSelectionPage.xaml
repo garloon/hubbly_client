@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:viewmodels="clr-namespace:Hubbly.Mobile.ViewModels"
+             xmlns:models="clr-namespace:Hubbly.Mobile.Models"
+             xmlns:components="clr-namespace:Hubbly.Mobile.Components"
+             xmlns:converters="clr-namespace:Hubbly.Mobile.Converters"
+             x:Class="Hubbly.Mobile.Views.RoomSelectionPage"
+             x:DataType="viewmodels:RoomSelectionViewModel"
+             Title="Select Room"
+             BackgroundColor="{DynamicResource PageBackgroundColor}">
+
+    <ContentPage.Resources>
+        <ResourceDictionary>
+            <converters:AvatarColorConverter x:Key="AvatarColorConverter" />
+            <converters:RoomTypeToIconConverter x:Key="RoomTypeToIconConverter" />
+            <converters:StringNotEmptyConverter x:Key="StringNotEmptyConverter" />
+            <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+            <converters:LoadingStatusConverter x:Key="LoadingStatusConverter" />
+        </ResourceDictionary>
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*,Auto"
+          Padding="{StaticResource SpacingMd}"
+          RowSpacing="{StaticResource SpacingMd}">
+
+        <!-- Header -->
+        <Grid Grid.Row="0"
+              ColumnDefinitions="Auto,*,Auto"
+              VerticalOptions="Center">
+            
+            <!-- Back Button -->
+            <Frame Grid.Column="0"
+                   Padding="0"
+                   BackgroundColor="Transparent"
+                   WidthRequest="44"
+                   HeightRequest="44"
+                   CornerRadius="22"
+                   HasShadow="False">
+                <Button Text="←"
+                        FontSize="20"
+                        TextColor="{DynamicResource TextColor}"
+                        BackgroundColor="Transparent"
+                        BorderWidth="0"
+                        Command="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Path=GoBackCommand}"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center" />
+            </Frame>
+
+            <!-- Title -->
+            <Label Grid.Column="1"
+                   Text="Select a Room"
+                   FontSize="20"
+                   FontAttributes="Bold"
+                   TextColor="{DynamicResource TextColor}"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center" />
+
+            <!-- Create Room Button (for authenticated users) -->
+            <Frame Grid.Column="2"
+                   Padding="0"
+                   BackgroundColor="{DynamicResource PrimaryColor}"
+                   WidthRequest="44"
+                   HeightRequest="44"
+                   CornerRadius="22"
+                   HasShadow="False"
+                   IsVisible="True">
+                <Button Text="+"
+                        FontSize="24"
+                        TextColor="White"
+                        BackgroundColor="Transparent"
+                        BorderWidth="0"
+                        Command="{Binding CreateRoomCommand}"
+                        HorizontalOptions="Center"
+                        VerticalOptions="Center" />
+            </Frame>
+        </Grid>
+
+        <!-- Search Bar -->
+        <Grid Grid.Row="1"
+              RowSpacing="{StaticResource SpacingMd}">
+            
+            <Grid RowDefinitions="Auto,*">
+                <!-- Search Entry -->
+                <Frame Grid.Row="0"
+                       BackgroundColor="{DynamicResource CardBackgroundColor}"
+                       BorderColor="{DynamicResource BorderColor}"
+                       CornerRadius="8"
+                       HasShadow="False"
+                       Padding="8,4">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <Label Grid.Column="0"
+                               Text="🔍"
+                               FontSize="16"
+                               VerticalOptions="Center"
+                               TextColor="{DynamicResource SecondaryTextColor}"
+                               Margin="0,0,8,0" />
+                        <Entry Grid.Column="1"
+                               Placeholder="Search rooms..."
+                               Text="{Binding SearchText}"
+                               FontSize="16"
+                               TextColor="{DynamicResource TextColor}"
+                               PlaceholderColor="{DynamicResource SecondaryTextColor}"
+                               BackgroundColor="Transparent"
+                               VerticalOptions="Center" />
+                    </Grid>
+                </Frame>
+
+                <!-- Room List -->
+                <CollectionView Grid.Row="1"
+                                ItemsSource="{Binding Rooms}"
+                                SelectionMode="Single"
+                                SelectedItem="{Binding SelectedRoom}"
+                                IsVisible="{Binding IsLoading, Converter={StaticResource InverseBoolConverter}}"
+                                Margin="0,16,0,0">
+                    
+                    <CollectionView.ItemsLayout>
+                        <LinearItemsLayout Orientation="Vertical" />
+                    </CollectionView.ItemsLayout>
+
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate x:DataType="models:RoomInfoDto">
+                            <Frame BackgroundColor="{DynamicResource CardBackgroundColor}"
+                                   BorderColor="{DynamicResource BorderColor}"
+                                   CornerRadius="8"
+                                   HasShadow="False"
+                                   Padding="{StaticResource SpacingMd}"
+                                   Margin="0,0,0,8">
+                                <Grid ColumnDefinitions="Auto,*,Auto"
+                                      RowSpacing="{StaticResource SpacingXs}">
+                                    
+                                    <!-- Room Icon -->
+                                    <Label Grid.Column="0"
+                                           Text="{Binding RoomType, Converter={StaticResource RoomTypeToIconConverter}}"
+                                           FontSize="24"
+                                           VerticalOptions="Start"
+                                           TextColor="{DynamicResource PrimaryColor}"
+                                           Margin="0,0,12,0" />
+
+                                    <!-- Room Info -->
+                                    <VerticalStackLayout Grid.Column="1"
+                                                         Spacing="{StaticResource SpacingXs}">
+                                        <Label Text="{Binding RoomName}"
+                                               FontSize="16"
+                                               FontAttributes="Bold"
+                                               TextColor="{DynamicResource TextColor}"
+                                               LineBreakMode="TailTruncation" />
+                                        
+                                        <Label Text="{Binding Description}"
+                                               FontSize="12"
+                                               TextColor="{DynamicResource SecondaryTextColor}"
+                                               LineBreakMode="TailTruncation"
+                                               IsVisible="{Binding Description, Converter={StaticResource StringNotEmptyConverter}}" />
+
+                                        <HorizontalStackLayout Spacing="{StaticResource SpacingSm}">
+                                            <Label Text="👥"
+                                                   FontSize="12"
+                                                   TextColor="{DynamicResource SecondaryTextColor}" />
+                                            <Label Text="{Binding CurrentUsers, StringFormat='{0} online'}"
+                                                   FontSize="12"
+                                                   TextColor="{DynamicResource SecondaryTextColor}" />
+                                            <Label Text="/"
+                                                   FontSize="12"
+                                                   TextColor="{DynamicResource SecondaryTextColor}" />
+                                            <Label Text="{Binding MaxUsers, StringFormat='{0} max'}"
+                                                   FontSize="12"
+                                                   TextColor="{DynamicResource SecondaryTextColor}" />
+                                        </HorizontalStackLayout>
+                                    </VerticalStackLayout>
+
+                                    <!-- Join Button -->
+                                    <Frame Grid.Column="2"
+                                           Padding="0"
+                                           BackgroundColor="{DynamicResource PrimaryColor}"
+                                           WidthRequest="60"
+                                           HeightRequest="32"
+                                           CornerRadius="16"
+                                           HasShadow="False"
+                                           VerticalOptions="Center">
+                                        <Button Text="Join"
+                                                FontSize="12"
+                                                TextColor="White"
+                                                BackgroundColor="Transparent"
+                                                BorderWidth="0"
+                                                Command="{Binding Source={RelativeSource AncestorType={x:Type viewmodels:RoomSelectionViewModel}}, Path=SelectRoomCommand}"
+                                                HorizontalOptions="Center"
+                                                VerticalOptions="Center" />
+                                    </Frame>
+                                </Grid>
+                            </Frame>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+                <!-- Loading Indicator -->
+                <ActivityIndicator Grid.Row="1"
+                                   IsRunning="{Binding IsLoading}"
+                                   Color="{DynamicResource PrimaryColor}"
+                                   HorizontalOptions="Center"
+                                   VerticalOptions="Center"
+                                   IsVisible="{Binding IsLoading}" />
+            </Grid>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Grid Grid.Row="2"
+              BackgroundColor="{DynamicResource CardBackgroundColor}"
+              Padding="{StaticResource SpacingMd}"
+              ColumnDefinitions="Auto,*,Auto">
+            <Label Grid.Column="0"
+                   Text="📊"
+                   FontSize="14"
+                   TextColor="{DynamicResource SecondaryTextColor}"
+                   VerticalOptions="Center" />
+            <Label Grid.Column="1"
+                   Text="{Binding Rooms.Count, StringFormat='{0} active rooms'}"
+                   FontSize="14"
+                   TextColor="{DynamicResource TextColor}"
+                   VerticalOptions="Center"
+                   HorizontalOptions="Start" />
+            <Label Grid.Column="2"
+                   Text="{Binding IsLoading, Converter={StaticResource LoadingStatusConverter}}"
+                   FontSize="12"
+                   TextColor="{DynamicResource SecondaryTextColor}"
+                   VerticalOptions="Center"
+                   HorizontalOptions="End" />
+        </Grid>
+    </Grid>
+</ContentPage>

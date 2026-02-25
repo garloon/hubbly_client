@@ -103,6 +103,7 @@ public static class MauiProgram
         // Business services (Singleton)
         services.AddSingleton<AuthService>();
         services.AddSingleton<SignalRService>(); // Depends on TokenManager and AuthService
+        services.AddSingleton<RoomService>(); // REST API service for room management
 
         // Background services (Hosted)
         services.AddHostedService<ConnectionMonitorService>();
@@ -114,6 +115,7 @@ public static class MauiProgram
         services.AddTransient<WelcomeViewModel>();
         services.AddTransient<AvatarSelectionViewModel>();
         services.AddTransient<ChatRoomViewModel>();
+        services.AddTransient<RoomSelectionViewModel>();
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<AboutViewModel>();
         services.AddTransient<AppShellViewModel>();
@@ -125,6 +127,7 @@ public static class MauiProgram
         services.AddTransient<WelcomePage>();
         services.AddTransient<AvatarSelectionPage>();
         services.AddTransient<ChatRoomPage>();
+        services.AddTransient<RoomSelectionPage>();
         services.AddTransient<SettingsPage>();
         services.AddTransient<AboutPage>();
         services.AddTransient<AppShell>();

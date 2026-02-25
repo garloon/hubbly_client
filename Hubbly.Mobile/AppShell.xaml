@@ -117,6 +117,31 @@
                             </Frame.GestureRecognizers>
                         </Frame>
 
+                        <!-- Room Selection Menu Item -->
+                        <Frame BackgroundColor="{DynamicResource CardBackgroundColor}"
+                               BorderColor="{DynamicResource BorderColor}"
+                               Padding="{StaticResource SpacingMd}"
+                               CornerRadius="8"
+                               HasShadow="False">
+                            <Grid ColumnDefinitions="Auto,*"
+                                  ColumnSpacing="{StaticResource SpacingMd}">
+                                <Label Grid.Column="0"
+                                       Text="🚪"
+                                       FontSize="20"
+                                       VerticalOptions="Center"
+                                       TextColor="{DynamicResource TextColor}"
+                                       Opacity="0.7" />
+                                <Label Grid.Column="1"
+                                       Text="Select Room"
+                                       FontSize="16"
+                                       TextColor="{DynamicResource TextColor}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                            <Frame.GestureRecognizers>
+                                <TapGestureRecognizer Command="{Binding OpenRoomSelectionCommand}" />
+                            </Frame.GestureRecognizers>
+                        </Frame>
+
                         <!-- Settings Menu Item -->
                         <Frame BackgroundColor="{DynamicResource CardBackgroundColor}"
                                BorderColor="{DynamicResource BorderColor}"
@@ -203,6 +228,7 @@
     <ShellContent Route="bootstrapper" ContentTemplate="{DataTemplate views:BootstrapperPage}" />
     <ShellContent Route="welcome" ContentTemplate="{DataTemplate views:WelcomePage}" />
     <ShellContent Route="avatarselection" ContentTemplate="{DataTemplate views:AvatarSelectionPage}" />
+    <ShellContent Route="roomselection" ContentTemplate="{DataTemplate views:RoomSelectionPage}" />
 
     <!-- Flyout Menu Items -->
     <FlyoutItem Title="{Binding ChatRoomTitle}"
@@ -212,6 +238,16 @@
         <ShellContent
             ContentTemplate="{DataTemplate views:ChatRoomPage}"
             Route="chat" />
+    </FlyoutItem>
+
+    <!-- Room Selection Menu Item -->
+    <FlyoutItem Title="Select Room"
+                Icon="🚪"
+                Route="roomselection"
+                FlyoutDisplayOptions="AsMultipleItems">
+        <ShellContent
+            ContentTemplate="{DataTemplate views:RoomSelectionPage}"
+            Route="roomselection" />
     </FlyoutItem>
 
     <!-- Logout Menu Item -->
