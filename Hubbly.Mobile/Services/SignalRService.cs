@@ -37,9 +37,7 @@ public class SignalRService : IDisposable
     private const int ReconnectBaseDelayMs = 2000;
 
     // Heartbeat
-    private Timer _heartbeatTimer;
-    private readonly TimeSpan _heartbeatInterval = TimeSpan.FromSeconds(30);
-    private readonly TimeSpan _heartbeatTimeout = TimeSpan.FromSeconds(10);
+    private readonly IHeartbeatService _heartbeatService;
     private string _currentUserId;
 
     // Message queue for offline mode
@@ -64,11 +62,12 @@ public class SignalRService : IDisposable
     public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected && _isConnected;
     public HubConnectionState ConnectionState => _hubConnection?.State ?? HubConnectionState.Disconnected;
 
-    public SignalRService(TokenManager tokenManager, AuthService authService, WebViewService webViewService, ILogger<SignalRService> logger)
+    public SignalRService(TokenManager tokenManager, AuthService authService, WebViewService webViewService, IHeartbeatService heartbeatService, ILogger<SignalRService> logger)
     {
         _tokenManager = tokenManager ?? throw new ArgumentNullException(nameof(tokenManager));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _webViewService = webViewService ?? throw new ArgumentNullException(nameof(webViewService));
+        _heartbeatService = heartbeatService ?? throw new ArgumentNullException(nameof(heartbeatService));
         _logger = logger;
 
         // Read server URL from Preferences via ServerConfig
@@ -80,6 +79,12 @@ public class SignalRService : IDisposable
         // Timer for processing message queue
         _queueProcessorTimer = new Timer(ProcessMessageQueue, null,
             TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+
+        // Configure heartbeat service
+        _heartbeatService.Interval = TimeSpan.FromSeconds(30);
+        _heartbeatService.Timeout = TimeSpan.FromSeconds(10);
+        _heartbeatService.HeartbeatSucceeded += OnHeartbeatSucceeded;
+        _heartbeatService.HeartbeatFailed += OnHeartbeatFailed;
 
         // NOTE: _currentUserId will be loaded on-demand when needed.
         // Removed fire-and-forget to avoid race conditions.
@@ -168,7 +173,7 @@ public class SignalRService : IDisposable
             _reconnectAttempts = 0;
 
             // Start heartbeat
-            StartHeartbeat();
+            _heartbeatService.StartAsync();
 
             _logger.LogInformation($"SignalR: Connected successfully. State: {_hubConnection.State}");
             OnConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs
@@ -227,7 +232,7 @@ public class SignalRService : IDisposable
             _logger.LogInformation("SignalR: Stopping connection...");
 
             // Stop heartbeat
-            StopHeartbeat();
+            _heartbeatService.StopAsync();
 
             if (_hubConnection != null)
             {
@@ -511,7 +516,7 @@ public class SignalRService : IDisposable
     private async Task OnConnectionClosed(Exception? error)
     {
         _isConnected = false;
-        StopHeartbeat();
+        _heartbeatService.StopAsync();
 
         _logger.LogWarning($"SignalR Connection closed: {error?.Message}");
         OnConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs
@@ -810,46 +815,22 @@ public class SignalRService : IDisposable
 
     #endregion
 
-    #region Heartbeat
-
-    private void StartHeartbeat()
+    private void OnHeartbeatSucceeded(object? sender, EventArgs e)
     {
-        StopHeartbeat();
-        _heartbeatTimer = new Timer(DoHeartbeat, null, _heartbeatInterval, _heartbeatInterval);
-        _logger.LogDebug("SignalR: Heartbeat started");
+        _logger.LogTrace("SignalR: Heartbeat OK");
     }
 
-    private void StopHeartbeat()
+    private void OnHeartbeatFailed(object? sender, string error)
     {
-        _heartbeatTimer?.Dispose();
-        _heartbeatTimer = null;
-    }
+        _logger.LogWarning($"SignalR: Heartbeat failed: {error}");
 
-    private async void DoHeartbeat(object state)
-    {
-        if (!_isConnected || _hubConnection?.State != HubConnectionState.Connected)
-            return;
-
-        try
+        // If heartbeat failed - try to reconnect
+        if (_isConnected)
         {
-            using var cts = new CancellationTokenSource(_heartbeatTimeout);
-            await _hubConnection.InvokeAsync("GetOnlineCount", cts.Token);
-            _logger.LogTrace("SignalR: Heartbeat OK");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "SignalR: Heartbeat failed");
-
-            // If heartbeat failed - try to reconnect
-            if (_isConnected)
-            {
-                _isConnected = false;
-                _ = Task.Run(async () => await TryReconnectWithBackoff());
-            }
+            _isConnected = false;
+            _ = Task.Run(async () => await TryReconnectWithBackoff());
         }
     }
-
-    #endregion
 
     #region Message queue
 
@@ -905,7 +886,7 @@ public class SignalRService : IDisposable
         _cts.Cancel();
 
         // Stop timers
-        StopHeartbeat();
+        _heartbeatService.StopAsync();
         _queueProcessorTimer?.Dispose();
 
         // Unsubscribe from everything
