@@ -148,7 +148,7 @@ public partial class AppShellViewModel : ObservableObject, IDisposable
     private async Task OpenChat()
     {
         _logger.LogInformation("🔰 AppShellViewModel: OpenChatCommand executed");
-        await _navigationService.NavigateToAsync("//chat");
+        await _navigationService.NavigateToAsync("//chatroom");
     }
 
     [RelayCommand]

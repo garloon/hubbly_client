@@ -91,8 +91,7 @@ public class RoomService
     {
         try
         {
-            // Отправляем пустой JSON объект вместо null, чтобы избежать 400 Bad Request
-            var response = await _httpClient.PostAsJsonAsync($"/api/rooms/{roomId}/join", new { }, cancellationToken);
+            var response = await _httpClient.PostAsync($"/api/rooms/{roomId}/join", null, cancellationToken);
             response.EnsureSuccessStatusCode();
 
             return await response.Content.ReadFromJsonAsync<RoomAssignmentData>(cancellationToken: cancellationToken);

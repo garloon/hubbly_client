@@ -27,6 +27,7 @@ public class SignalRService : IDisposable
 
     // State
     private bool _isConnecting = false;
+    private bool _isConnected = false;
     private DateTime _lastConnectionAttempt = DateTime.MinValue;
 
     // Reconnect
@@ -59,7 +60,7 @@ public class SignalRService : IDisposable
     public event EventHandler<(string userId, string animationType)> OnUserPlayAnimation;
 
     // Properties
-    public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
+    public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected && _isConnected;
     public HubConnectionState ConnectionState => _hubConnection?.State ?? HubConnectionState.Disconnected;
 
     public SignalRService(TokenManager tokenManager, AuthService authService, WebViewService webViewService, ILogger<SignalRService> logger)
@@ -120,7 +121,7 @@ public class SignalRService : IDisposable
                 return;
             }
 
-            if (_hubConnection?.State == HubConnectionState.Connected)
+            if (_hubConnection?.State == HubConnectionState.Connected || _isConnected)
             {
                 _logger.LogInformation($"SignalR: Already connected. State: {_hubConnection?.State}");
                 OnConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs
@@ -162,6 +163,7 @@ public class SignalRService : IDisposable
             // Start
             await _hubConnection.StartAsync(_cts.Token);
 
+            _isConnected = true;
             _reconnectAttempts = 0;
 
             // Start heartbeat
@@ -178,6 +180,7 @@ public class SignalRService : IDisposable
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.Unauthorized)
         {
+            _isConnected = false;
             _logger.LogError(ex, "SignalR: Unauthorized - token expired?");
             OnConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs
             {
@@ -189,6 +192,7 @@ public class SignalRService : IDisposable
         }
         catch (OperationCanceledException)
         {
+            _isConnected = false;
             _logger.LogWarning("SignalR: Connection cancelled");
             OnConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs
             {
@@ -198,6 +202,7 @@ public class SignalRService : IDisposable
         }
         catch (Exception ex)
         {
+            _isConnected = false;
             _logger.LogError(ex, "SignalR: Failed to start connection");
             OnConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs
             {
@@ -234,6 +239,7 @@ public class SignalRService : IDisposable
                 _hubConnection = null;
             }
 
+            _isConnected = false;
             _reconnectAttempts = 0;
             _lastConnectionAttempt = DateTime.MinValue;
 
@@ -268,7 +274,7 @@ public class SignalRService : IDisposable
         var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var nonce = Guid.NewGuid().ToString("N");
 
-        if (_hubConnection?.State == HubConnectionState.Connected)
+        if (_hubConnection?.State == HubConnectionState.Connected && _isConnected)
         {
             try
             {
@@ -303,7 +309,7 @@ public class SignalRService : IDisposable
             _ = Task.Run(async () =>
             {
                 await Task.Delay(500);
-                if (!_isConnecting)
+                if (!_isConnected && !_isConnecting)
                 {
                     try
                     {
@@ -332,7 +338,7 @@ public class SignalRService : IDisposable
 
         try
         {
-            if (_hubConnection?.State == HubConnectionState.Connected)
+            if (_hubConnection?.State == HubConnectionState.Connected && _isConnected)
             {
                 _logger.LogInformation($"SignalR: Sending animation: {animationType}, target: {targetUserId ?? "self"}");
                 await _hubConnection.InvokeAsync("SendAnimation", animationType, targetUserId, _cts.Token);
@@ -354,7 +360,7 @@ public class SignalRService : IDisposable
     {
         try
         {
-            if (_hubConnection?.State == HubConnectionState.Connected)
+            if (_hubConnection?.State == HubConnectionState.Connected && _isConnected)
             {
                 await _hubConnection.InvokeAsync("UserTyping", _cts.Token);
             }
@@ -414,10 +420,6 @@ public class SignalRService : IDisposable
         // Subscribe to Closed event and save delegate
         _connectionClosedHandler = OnConnectionClosed;
         connection.Closed += _connectionClosedHandler;
-
-        // Subscribe to reconnection events
-        connection.Reconnecting += OnReconnecting;
-        connection.Reconnected += OnReconnected;
 
         // Subscribe to messages
         _subscriptions.Add(connection.On<ChatMessageDto>("ReceiveMessage", OnReceiveMessage));
@@ -507,6 +509,7 @@ public class SignalRService : IDisposable
 
     private async Task OnConnectionClosed(Exception? error)
     {
+        _isConnected = false;
         StopHeartbeat();
 
         _logger.LogWarning($"SignalR Connection closed: {error?.Message}");
@@ -537,27 +540,6 @@ public class SignalRService : IDisposable
             // Regular error - try to reconnect
             await TryReconnectWithBackoff();
         }
-    }
-
-    private Task OnReconnecting(Exception? error)
-    {
-        _logger.LogInformation("SignalR: Reconnecting...");
-        OnConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs
-        {
-            State = HubConnectionState.Reconnecting,
-            Error = error?.Message
-        });
-        return Task.CompletedTask;
-    }
-
-    private Task OnReconnected(string connectionId)
-    {
-        _logger.LogInformation("SignalR: Reconnected. Connection ID: {ConnectionId}", connectionId);
-        OnConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs
-        {
-            State = HubConnectionState.Connected
-        });
-        return Task.CompletedTask;
     }
 
     private async Task TryReconnectWithBackoff()
@@ -844,7 +826,7 @@ public class SignalRService : IDisposable
 
     private async void DoHeartbeat(object state)
     {
-        if (_hubConnection?.State != HubConnectionState.Connected)
+        if (!_isConnected || _hubConnection?.State != HubConnectionState.Connected)
             return;
 
         try
@@ -858,7 +840,11 @@ public class SignalRService : IDisposable
             _logger.LogWarning(ex, "SignalR: Heartbeat failed");
 
             // If heartbeat failed - try to reconnect
-            _ = Task.Run(async () => await TryReconnectWithBackoff());
+            if (_isConnected)
+            {
+                _isConnected = false;
+                _ = Task.Run(async () => await TryReconnectWithBackoff());
+            }
         }
     }
 
@@ -868,7 +854,7 @@ public class SignalRService : IDisposable
 
     private async void ProcessMessageQueue(object state)
     {
-        if (_hubConnection?.State != HubConnectionState.Connected)
+        if (!_isConnected || _hubConnection?.State != HubConnectionState.Connected)
             return;
 
         while (_messageQueue.TryDequeue(out var queuedMessage))
