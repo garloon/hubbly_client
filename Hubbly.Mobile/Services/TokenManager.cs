@@ -1,449 +1,85 @@
 ﻿using Microsoft.Extensions.Logging;
-using System.Collections.Concurrent;
 
 namespace Hubbly.Mobile.Services;
 
 public class TokenManager : IDisposable
 {
     private readonly ILogger<TokenManager> _logger;
-    private readonly ConcurrentDictionary<string, TokenInfo> _tokenCache = new();
-    private readonly SemaphoreSlim _refreshLock = new(1, 1);
-    private readonly SemaphoreSlim _storageLock = new(1, 1);
-    private readonly CancellationTokenSource _cts = new();
-
-    private bool _isRefreshing;
-    private Task<string?> _currentRefreshTask;
+    private readonly ITokenStorage _storage;
+    private readonly ITokenRefresh _refresh;
     private bool _disposed;
 
-    public TokenManager(ILogger<TokenManager> logger)
+    public TokenManager(ITokenStorage storage, ITokenRefresh refresh, ILogger<TokenManager> logger)
     {
+        _storage = storage;
+        _refresh = refresh;
         _logger = logger;
-        
-        // NOTE: Tokens are loaded on-demand via GetAsync to avoid race conditions.
-        // Eager loading removed - was causing race conditions with fire-and-forget.
     }
 
-    #region Public Methods
+    #region Public Methods (Facade)
 
     public async Task SetAsync(string key, string value, TimeSpan? expiresIn = null)
     {
         ThrowIfDisposed();
-
-        if (string.IsNullOrEmpty(key))
-            throw new ArgumentNullException(nameof(key));
-
-        if (value == null)
-            throw new ArgumentNullException(nameof(value));
-
-        _logger.LogDebug($"📝 TokenManager.Set: {key} (value hidden for security)");
-
-        var tokenInfo = new TokenInfo
-        {
-            Value = value,
-            ExpiresAt = expiresIn.HasValue
-                ? DateTimeOffset.UtcNow.Add(expiresIn.Value)
-                : null
-        };
-
-        // Store in cache
-        _tokenCache[key] = tokenInfo;
-
-        // Save to persistent storage in background
-        _ = Task.Run(async () => await SaveToStorageAsync(key, tokenInfo));
+        await _storage.SetAsync(key, value, expiresIn);
     }
 
     public async Task<string> GetAsync(string key)
     {
         ThrowIfDisposed();
-
-        if (string.IsNullOrEmpty(key))
-            throw new ArgumentNullException(nameof(key));
-
-        var tokenInfo = await GetTokenInfoAsync(key);
+        var value = await _storage.GetAsync(key);
         _logger.LogDebug($"📖 TokenManager.Get: {key} (value hidden for security)");
-
-        return tokenInfo?.Value ?? string.Empty;
+        return value ?? string.Empty;
     }
 
     public async Task<string?> GetValidTokenAsync(AuthService authService)
     {
         ThrowIfDisposed();
-
-        if (authService == null)
-            throw new ArgumentNullException(nameof(authService));
-
-        // 1. Check current token
-        var tokenInfo = await GetTokenInfoAsync("access_token");
-        if (tokenInfo != null && !tokenInfo.IsExpired)
-        {
-            _logger.LogDebug("TokenManager: Valid token found");
-            return tokenInfo.Value;
-        }
-
-        // 2. Use "async lazy initialization" pattern
-        if (!await _refreshLock.WaitAsync(TimeSpan.FromSeconds(5)))
-        {
-            _logger.LogError("TokenManager: Failed to acquire refresh lock within 5 seconds");
-            return null;
-        }
-
-        try
-        {
-            // Double-check after acquiring lock
-            tokenInfo = await GetTokenInfoAsync("access_token");
-            if (tokenInfo != null && !tokenInfo.IsExpired)
-            {
-                return tokenInfo.Value;
-            }
-
-            // If already refreshing - join existing task
-            if (_isRefreshing && _currentRefreshTask != null)
-            {
-                _logger.LogInformation("TokenManager: Refresh already in progress, waiting...");
-                return await _currentRefreshTask;
-            }
-
-            // Start refresh
-            _isRefreshing = true;
-            _currentRefreshTask = RefreshTokenInternalAsync(authService);
-
-            return await _currentRefreshTask;
-        }
-        finally
-        {
-            _isRefreshing = false;
-            _currentRefreshTask = null;
-            _refreshLock.Release();
-        }
+        return await _refresh.GetValidTokenAsync(authService);
     }
 
     public void Clear()
     {
         ThrowIfDisposed();
-
         _logger.LogInformation("TokenManager: Clearing all tokens");
-
-        lock (_storageLock)
-        {
-            _tokenCache.Clear();
-
-            // Clear SecureStorage
-            try
-            {
-                SecureStorage.RemoveAll();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to clear SecureStorage");
-            }
-
-            // Clear Preferences
-            try
-            {
-                // Only remove our keys, not all preferences
-                var keys = new[] { "access_token", "refresh_token", "user_id", "persistent_device_id", "server_device_id", "nickname" };
-                foreach (var key in keys)
-                {
-                    Preferences.Remove(key);
-                    Preferences.Remove($"{key}_expires");
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Failed to clear Preferences");
-            }
-        }
+        _storage.ClearAsync().GetAwaiter().GetResult();
     }
 
     public async Task<bool> HasValidTokenAsync()
     {
         ThrowIfDisposed();
-
-        var tokenInfo = await GetTokenInfoAsync("access_token");
-        return tokenInfo != null && !tokenInfo.IsExpired;
+        return await _refresh.HasValidTokenAsync();
     }
 
     public async Task<TimeSpan?> GetTokenExpirationAsync(string key)
     {
         ThrowIfDisposed();
-
-        var tokenInfo = await GetTokenInfoAsync(key);
-        if (tokenInfo?.ExpiresAt == null)
-            return null;
-
-        var remaining = tokenInfo.ExpiresAt.Value - DateTimeOffset.UtcNow;
-        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+        return await _refresh.GetTokenExpirationAsync(key);
     }
 
     public async Task<string> GetNicknameAsync()
     {
-        // Check cache first
-        var cached = await GetAsync("nickname");
-        if (!string.IsNullOrEmpty(cached))
-            return cached;
-
-        // Try Preferences as fallback (should be encrypted)
-        var pref = await GetEncryptedAsync("nickname");
-        if (!string.IsNullOrEmpty(pref))
-        {
-            await SetEncryptedAsync("nickname", pref);
-            return pref;
-        }
-
-        return "Guest";
-    }
-
-    #endregion
-
-    #region Simple Storage (No Encryption for Debug)
-
-    public Task SetEncryptedAsync(string key, string value)
-    {
         ThrowIfDisposed();
-
-        if (string.IsNullOrEmpty(key))
-            throw new ArgumentNullException(nameof(key));
-
-        if (value == null)
-            throw new ArgumentNullException(nameof(value));
-
-        _logger.LogDebug($"💾 TokenManager.Set: {key} (value hidden for security)");
-
-        // Store directly in Preferences (no encryption for debug)
-        Preferences.Set(key, value);
-
-        // Also cache in memory for quick access
-        _tokenCache[key] = new TokenInfo { Value = value };
-
-        return Task.CompletedTask;
+        return await _refresh.GetNicknameAsync();
     }
 
     public async Task<string?> GetEncryptedAsync(string key)
     {
         ThrowIfDisposed();
+        // For now, just use regular storage (no encryption)
+        // This maintains compatibility with the existing code
+        return await _storage.GetAsync(key);
+    }
 
-        if (string.IsNullOrEmpty(key))
-            throw new ArgumentNullException(nameof(key));
-
-        // Check cache first
-        if (_tokenCache.TryGetValue(key, out var cached))
-        {
-            _logger.LogDebug($"📖 TokenManager.Get (cached): {key}");
-            return cached.Value;
-        }
-
-        // Try to read from Preferences
-        try
-        {
-            var value = Preferences.Get(key, string.Empty);
-            if (!string.IsNullOrEmpty(value))
-            {
-                _logger.LogDebug($"📖 TokenManager.Get (from Preferences): {key}");
-
-                // Cache for future
-                _tokenCache[key] = new TokenInfo { Value = value };
-                return value;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to read {Key} from Preferences", key);
-        }
-
-        return null;
+    public async Task SetEncryptedAsync(string key, string value)
+    {
+        ThrowIfDisposed();
+        // For now, just use regular storage (no encryption)
+        // This maintains compatibility with the existing code
+        await _storage.SetAsync(key, value);
     }
 
     #endregion
-
-    #region Private Methods
-
-    private async Task<TokenInfo?> GetTokenInfoAsync(string key)
-    {
-        // Check cache
-        if (_tokenCache.TryGetValue(key, out var cached))
-        {
-            return cached;
-        }
-
-        // Try to load from storage
-        return await LoadFromStorageAsync(key);
-    }
-
-    private async Task<TokenInfo?> LoadFromStorageAsync(string key)
-    {
-        try
-        {
-            // Try SecureStorage (OS encrypted)
-            var value = await SecureStorage.GetAsync(key);
-            var expiresStr = await SecureStorage.GetAsync($"{key}_expires");
-
-            if (!string.IsNullOrEmpty(value))
-            {
-                var tokenInfo = new TokenInfo { Value = value };
-
-                if (!string.IsNullOrEmpty(expiresStr) &&
-                    DateTimeOffset.TryParse(expiresStr, out var expires))
-                {
-                    tokenInfo.ExpiresAt = expires;
-                }
-
-                // Store in cache
-                _tokenCache[key] = tokenInfo;
-
-                return tokenInfo;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load {Key} from SecureStorage", key);
-        }
-
-        // Fallback to Preferences (simple storage)
-        try
-        {
-            var prefValue = Preferences.Get(key, string.Empty);
-            var prefExpires = Preferences.Get($"{key}_expires", string.Empty);
-
-            if (!string.IsNullOrEmpty(prefValue))
-            {
-                var tokenInfo = new TokenInfo { Value = prefValue };
-
-                if (!string.IsNullOrEmpty(prefExpires) &&
-                    DateTimeOffset.TryParse(prefExpires, out var expires))
-                {
-                    tokenInfo.ExpiresAt = expires;
-                }
-
-                // Store in cache
-                _tokenCache[key] = tokenInfo;
-
-                return tokenInfo;
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load {Key} from Preferences", key);
-        }
-
-        return null;
-    }
-
-    private async Task LoadTokensFromStorageAsync()
-    {
-        try
-        {
-            var keys = new[] { "access_token", "refresh_token", "user_id" };
-
-            foreach (var key in keys)
-            {
-                await LoadFromStorageAsync(key);
-            }
-
-            _logger.LogInformation("TokenManager: Loaded tokens from storage");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to load tokens from storage");
-        }
-    }
-
-    private async Task SaveToStorageAsync(string key, TokenInfo tokenInfo)
-    {
-        if (!await _storageLock.WaitAsync(TimeSpan.FromSeconds(2)))
-        {
-            _logger.LogWarning("Failed to acquire storage lock for {Key}", key);
-            return;
-        }
-
-        try
-        {
-            // Save to SecureStorage (OS-level encryption)
-            await SecureStorage.SetAsync(key, tokenInfo.Value);
-
-            if (tokenInfo.ExpiresAt.HasValue)
-            {
-                await SecureStorage.SetAsync($"{key}_expires", tokenInfo.ExpiresAt.Value.ToString("o"));
-            }
-
-            // Also save to Preferences for easy access (no additional encryption)
-            Preferences.Set(key, tokenInfo.Value);
-
-            if (tokenInfo.ExpiresAt.HasValue)
-            {
-                Preferences.Set($"{key}_expires", tokenInfo.ExpiresAt.Value.ToString("o"));
-            }
-
-            _logger.LogDebug("Saved {Key} to storage", key);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to save {Key} to storage", key);
-        }
-        finally
-        {
-            _storageLock.Release();
-        }
-    }
-
-    private async Task<string?> RefreshTokenInternalAsync(AuthService authService)
-    {
-        try
-        {
-            _logger.LogInformation("TokenManager: Starting token refresh...");
-
-            var refreshToken = await GetAsync("refresh_token");
-            var deviceId = Preferences.Get("server_device_id",
-                Preferences.Get("persistent_device_id", ""));
-
-            if (string.IsNullOrEmpty(refreshToken))
-            {
-                _logger.LogWarning("TokenManager: Missing refresh token");
-                return null;
-            }
-
-            if (string.IsNullOrEmpty(deviceId))
-            {
-                _logger.LogWarning("TokenManager: Missing device ID");
-                return null;
-            }
-
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
-            cts.CancelAfter(TimeSpan.FromSeconds(10));
-
-            var authResponse = await authService.RefreshTokenAsync(refreshToken, deviceId);
-
-            // Save new tokens
-            await SetAsync("access_token", authResponse.AccessToken, TimeSpan.FromMinutes(15));
-            await SetAsync("refresh_token", authResponse.RefreshToken, TimeSpan.FromDays(7));
-
-            if (!string.IsNullOrEmpty(authResponse.DeviceId))
-            {
-                Preferences.Set("server_device_id", authResponse.DeviceId);
-            }
-
-            _logger.LogInformation("TokenManager: Token refreshed successfully");
-            return authResponse.AccessToken;
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogWarning("TokenManager: Refresh cancelled");
-            return null;
-        }
-        catch (UnauthorizedAccessException ex)
-        {
-            _logger.LogError(ex, "TokenManager: Refresh failed - unauthorized");
-
-            // On critical auth error - clear everything
-            Clear();
-
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "TokenManager: Refresh failed");
-            return null;
-        }
-    }
 
     private void ThrowIfDisposed()
     {
@@ -451,41 +87,15 @@ public class TokenManager : IDisposable
             throw new ObjectDisposedException(nameof(TokenManager));
     }
 
-    #endregion
-
-    #region IDisposable
-
     public void Dispose()
     {
         if (_disposed) return;
 
         _logger.LogInformation("TokenManager: Disposing...");
 
-        _cts.Cancel();
-        _cts.Dispose();
-
-        _refreshLock?.Dispose();
-        _storageLock?.Dispose();
-
-        _tokenCache.Clear();
-
         _disposed = true;
         GC.SuppressFinalize(this);
 
         _logger.LogInformation("TokenManager: Disposed");
     }
-
-    #endregion
-
-    #region Internal Classes
-
-    private class TokenInfo
-    {
-        public string Value { get; set; } = string.Empty;
-        public DateTimeOffset? ExpiresAt { get; set; }
-
-        public bool IsExpired => ExpiresAt.HasValue && DateTimeOffset.UtcNow >= ExpiresAt.Value;
-    }
-
-    #endregion
 }

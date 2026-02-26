@@ -77,6 +77,8 @@ public static class MauiProgram
     {
         // Infrastructure services (Singleton)
         services.AddSingleton<DeviceIdService>();
+        services.AddSingleton<ITokenStorage, TokenStorage>();
+        services.AddSingleton<ITokenRefresh, TokenRefresh>();
         services.AddSingleton<TokenManager>();
         services.AddSingleton<WebViewService>();
         services.AddSingleton<INavigationService, SimpleNavigationService>();
