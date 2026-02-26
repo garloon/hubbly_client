@@ -397,7 +397,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
             }
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
-            cts.CancelAfter(TimeSpan.FromSeconds(10));
+            cts.CancelAfter(AppConstants.WebViewEvaluateTimeout);
 
             await _viewModel.OnAppearing();
 

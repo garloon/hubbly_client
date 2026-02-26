@@ -1,3 +1,4 @@
+using Hubbly.Mobile.Config;
 using Microsoft.Extensions.Logging;
 
 namespace Hubbly.Mobile.Services;
@@ -39,13 +40,13 @@ public class TokenRefresh : ITokenRefresh
             }
 
             using var cts = new CancellationTokenSource();
-            cts.CancelAfter(TimeSpan.FromSeconds(10));
+            cts.CancelAfter(AppConstants.TokenRefreshTimeout);
 
             var authResponse = await authService.RefreshTokenAsync(refreshToken, deviceId);
 
             // Save new tokens
-            await _storage.SetAsync("access_token", authResponse.AccessToken, TimeSpan.FromMinutes(15));
-            await _storage.SetAsync("refresh_token", authResponse.RefreshToken, TimeSpan.FromDays(7));
+            await _storage.SetAsync("access_token", authResponse.AccessToken, AppConstants.AccessTokenExpiration);
+            await _storage.SetAsync("refresh_token", authResponse.RefreshToken, AppConstants.RefreshTokenExpiration);
 
             if (!string.IsNullOrEmpty(authResponse.DeviceId))
             {

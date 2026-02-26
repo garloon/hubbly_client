@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Hubbly.Mobile.Config;
 using Hubbly.Mobile.Models;
 using Hubbly.Mobile.Services;
 using Microsoft.Extensions.Logging;
@@ -93,7 +94,7 @@ public partial class AvatarSelectionViewModel : ObservableObject, IDisposable, I
             return;
         }
 
-        if (!await _navigationLock.WaitAsync(TimeSpan.FromSeconds(5)))
+        if (!await _navigationLock.WaitAsync(TimeSpan.FromSeconds(AppConstants.NavigationLockTimeoutSeconds)))
         {
             _logger.LogError("Confirm: Failed to acquire lock within 5 seconds");
             ErrorMessage = "System busy, please try again";
@@ -129,13 +130,13 @@ public partial class AvatarSelectionViewModel : ObservableObject, IDisposable, I
             _logger.LogInformation("Authenticating as guest with avatar");
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
-            cts.CancelAfter(TimeSpan.FromSeconds(20));
+            cts.CancelAfter(TimeSpan.FromSeconds(AppConstants.ConnectionLockTimeoutSeconds));
 
             var authResponse = await _authService.AuthenticateGuestWithAvatarAsync(configJson);
 
             // 4. Save tokens
-            await _tokenManager.SetAsync("access_token", authResponse.AccessToken, TimeSpan.FromMinutes(15));
-            await _tokenManager.SetAsync("refresh_token", authResponse.RefreshToken, TimeSpan.FromDays(7));
+            await _tokenManager.SetAsync("access_token", authResponse.AccessToken, AppConstants.AccessTokenExpiration);
+            await _tokenManager.SetAsync("refresh_token", authResponse.RefreshToken, AppConstants.RefreshTokenExpiration);
             await _tokenManager.SetAsync("user_id", authResponse.User.Id.ToString());
 
             // 5. Save user data (encrypted)

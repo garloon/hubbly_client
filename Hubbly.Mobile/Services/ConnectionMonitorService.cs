@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Hosting;
+﻿using Hubbly.Mobile.Config;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace Hubbly.Mobile.Services;
@@ -7,7 +8,7 @@ public class ConnectionMonitorService : BackgroundService
 {
     private readonly ILogger<ConnectionMonitorService> _logger;
     private readonly IServiceProvider _serviceProvider;
-    private readonly TimeSpan _checkInterval = TimeSpan.FromSeconds(30);
+    private readonly TimeSpan _checkInterval = AppConstants.ConnectionMonitorInterval;
 
     public ConnectionMonitorService(
         ILogger<ConnectionMonitorService> logger,
@@ -35,7 +36,7 @@ public class ConnectionMonitorService : BackgroundService
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error in connection monitor");
-                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+                await Task.Delay(AppConstants.ConnectionMonitorErrorDelay, stoppingToken);
             }
         }
 

@@ -34,7 +34,7 @@ public class SignalRService : IDisposable
     // Reconnect
     private int _reconnectAttempts = 0;
     private const int MaxReconnectAttempts = 5;
-    private const int ReconnectBaseDelayMs = 2000;
+    private const int ReconnectBaseDelayMs = 2000; // TODO: Move to AppConstants
 
     // Heartbeat
     private readonly IHeartbeatService _heartbeatService;
@@ -78,11 +78,11 @@ public class SignalRService : IDisposable
 
         // Timer for processing message queue
         _queueProcessorTimer = new Timer(ProcessMessageQueue, null,
-            TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
+            AppConstants.MessageQueueProcessingInterval, AppConstants.MessageQueueProcessingInterval);
 
         // Configure heartbeat service
-        _heartbeatService.Interval = TimeSpan.FromSeconds(30);
-        _heartbeatService.Timeout = TimeSpan.FromSeconds(10);
+        _heartbeatService.Interval = AppConstants.HeartbeatInterval;
+        _heartbeatService.Timeout = AppConstants.HeartbeatTimeout;
         _heartbeatService.HeartbeatSucceeded += OnHeartbeatSucceeded;
         _heartbeatService.HeartbeatFailed += OnHeartbeatFailed;
 
@@ -102,7 +102,7 @@ public class SignalRService : IDisposable
             return;
         }
 
-        if (!await _connectionLock.WaitAsync(TimeSpan.FromSeconds(5)))
+        if (!await _connectionLock.WaitAsync(TimeSpan.FromSeconds(AppConstants.NavigationLockTimeoutSeconds)))
         {
             _logger.LogError("SignalR: Failed to acquire lock within 5 seconds");
             OnConnectionStateChanged?.Invoke(this, new ConnectionStateChangedEventArgs
@@ -271,7 +271,7 @@ public class SignalRService : IDisposable
         if (string.IsNullOrWhiteSpace(message))
             return;
 
-        if (message.Length > 500)
+        if (message.Length > AppConstants.MaxMessageLength)
         {
             OnErrorReceived?.Invoke(this, "Message too long (max 500 chars)");
             return;
@@ -314,7 +314,7 @@ public class SignalRService : IDisposable
             // Try to connect
             _ = Task.Run(async () =>
             {
-                await Task.Delay(500);
+                await Task.Delay(AppConstants.RetryDelayMilliseconds);
                 if (!_isConnected && !_isConnecting)
                 {
                     try
@@ -406,15 +406,15 @@ public class SignalRService : IDisposable
                 };
                 options.Transports = HttpTransportType.WebSockets;
                 options.SkipNegotiation = true;
-                options.CloseTimeout = TimeSpan.FromSeconds(5);
+                options.CloseTimeout = AppConstants.SignalRCloseTimeout;
             })
             .WithAutomaticReconnect(new[]
             {
-                TimeSpan.FromSeconds(2),
+                AppConstants.SignalRHandshakeTimeout,
                 TimeSpan.FromSeconds(5),
                 TimeSpan.FromSeconds(10),
                 TimeSpan.FromSeconds(20),
-                TimeSpan.FromSeconds(30)
+                TimeSpan.FromSeconds(30) // TODO: Use exponential backoff with constants
             })
             .ConfigureLogging(logging =>
             {
@@ -465,7 +465,7 @@ public class SignalRService : IDisposable
 
                 if (_hubConnection.State != HubConnectionState.Disconnected)
                 {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(AppConstants.NavigationLockTimeoutSeconds));
                     await _hubConnection.StopAsync(cts.Token);
                 }
 
@@ -561,7 +561,7 @@ public class SignalRService : IDisposable
             return;
         }
 
-        if (!await _reconnectLock.WaitAsync(TimeSpan.FromSeconds(1)))
+        if (!await _reconnectLock.WaitAsync(TimeSpan.FromSeconds(AppConstants.ReconnectLockTimeoutSeconds)))
         {
             _logger.LogWarning("SignalR: Reconnect already in progress");
             return;
@@ -573,7 +573,7 @@ public class SignalRService : IDisposable
 
             // Exponential backoff: 2^attempt * base delay
             var delayMs = Math.Pow(2, _reconnectAttempts) * ReconnectBaseDelayMs;
-            delayMs = Math.Min(delayMs, 30000); // Maximum 30 seconds
+            delayMs = Math.Min(delayMs, 30000); // Maximum 30 seconds (TODO: make 30000 a constant)
 
             _logger.LogInformation($"SignalR: Reconnect attempt {_reconnectAttempts}/{MaxReconnectAttempts} in {delayMs}ms");
 
@@ -593,7 +593,7 @@ public class SignalRService : IDisposable
             _logger.LogError(ex, $"SignalR: Reconnect attempt {_reconnectAttempts} failed");
 
             // Try again with exponential backoff
-            _ = Task.Delay(1000).ContinueWith(async _ =>
+            _ = Task.Delay(AppConstants.RetryDelayMilliseconds).ContinueWith(async _ =>
             {
                 await TryReconnectWithBackoff();
             });
@@ -845,7 +845,7 @@ public class SignalRService : IDisposable
             {
                 // Check if message is stale
                 var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                if (now - queuedMessage.Timestamp > 60)
+                if (now - queuedMessage.Timestamp > AppConstants.MaxQueuedMessageAgeSeconds)
                 {
                     _logger.LogWarning("Dropping stale message from queue");
                     continue;
@@ -859,7 +859,7 @@ public class SignalRService : IDisposable
                     _cts.Token);
 
                 _logger.LogInformation("✅ Queued message sent");
-                await Task.Delay(100); // Small pause between messages
+                await Task.Delay(AppConstants.MessageQueueDelayMilliseconds); // Small pause between messages
             }
             catch (Exception ex)
             {

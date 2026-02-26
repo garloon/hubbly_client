@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
+using Hubbly.Mobile.Config;
 using CommunityToolkit.Mvvm.Input;
 using Hubbly.Mobile.Services;
 using Microsoft.Extensions.Logging;
@@ -54,7 +55,7 @@ public partial class WelcomeViewModel : ObservableObject, IDisposable
             return;
         }
 
-        if (!await _navigationLock.WaitAsync(TimeSpan.FromSeconds(5)))
+        if (!await _navigationLock.WaitAsync(TimeSpan.FromSeconds(AppConstants.NavigationLockTimeoutSeconds)))
         {
             _logger.LogError("EnterAsGuest: Failed to acquire lock");
             StatusMessage = "System busy, please try again";

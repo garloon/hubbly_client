@@ -1,3 +1,4 @@
+using Hubbly.Mobile.Config;
 using Microsoft.Extensions.Logging;
 
 namespace Hubbly.Mobile.Services;
@@ -11,8 +12,8 @@ public class HeartbeatService : IHeartbeatService, IDisposable
     private const int MaxConsecutiveFailures = 3;
     
     public bool IsRunning => _isRunning;
-    public TimeSpan Interval { get; set; } = TimeSpan.FromSeconds(30);
-    public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(10);
+    public TimeSpan Interval { get; set; } = AppConstants.HeartbeatInterval;
+    public TimeSpan Timeout { get; set; } = AppConstants.HeartbeatTimeout;
 
     public event EventHandler? HeartbeatSucceeded;
     public event EventHandler<string>? HeartbeatFailed;

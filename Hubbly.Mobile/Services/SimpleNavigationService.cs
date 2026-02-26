@@ -1,4 +1,5 @@
-﻿using Hubbly.Mobile.Views;
+﻿using Hubbly.Mobile.Config;
+using Hubbly.Mobile.Views;
 using Microsoft.Extensions.Logging;
 
 namespace Hubbly.Mobile.Services;
@@ -34,7 +35,7 @@ public class SimpleNavigationService : INavigationService, IDisposable
 
         _logger.LogInformation("SimpleNavigationService: Navigating to {Route}", route);
 
-        if (!await _navigationLock.WaitAsync(TimeSpan.FromSeconds(5)))
+        if (!await _navigationLock.WaitAsync(TimeSpan.FromSeconds(AppConstants.NavigationLockTimeoutSeconds)))
         {
             _logger.LogError("NavigationService: Failed to acquire lock within 5 seconds");
             return;
@@ -124,7 +125,7 @@ public class SimpleNavigationService : INavigationService, IDisposable
 
         _logger.LogInformation("SimpleNavigationService: Going back");
 
-        if (!await _navigationLock.WaitAsync(TimeSpan.FromSeconds(5)))
+        if (!await _navigationLock.WaitAsync(TimeSpan.FromSeconds(AppConstants.NavigationLockTimeoutSeconds)))
         {
             _logger.LogError("NavigationService: Failed to acquire lock within 5 seconds");
             return;
@@ -172,7 +173,7 @@ public class SimpleNavigationService : INavigationService, IDisposable
 
         _logger.LogInformation("SimpleNavigationService: Navigating to root");
 
-        if (!await _navigationLock.WaitAsync(TimeSpan.FromSeconds(5)))
+        if (!await _navigationLock.WaitAsync(TimeSpan.FromSeconds(AppConstants.NavigationLockTimeoutSeconds)))
         {
             _logger.LogError("NavigationService: Failed to acquire lock within 5 seconds");
             return;

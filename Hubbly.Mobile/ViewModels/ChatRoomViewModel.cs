@@ -1,6 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.Messaging;
+using Hubbly.Mobile.Config;
 using Hubbly.Mobile.Models;
 using Hubbly.Mobile.Messages;
 using Hubbly.Mobile.Services;
@@ -82,7 +83,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     private int _usersInRoom;
 
     [ObservableProperty]
-    private int _maxUsers = 50;
+    private int _maxUsers = AppConstants.DefaultMaxUsersPerRoom;
 
     [ObservableProperty]
     private bool _isBusy;
@@ -142,8 +143,8 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
 
         _logger = logger;
 
-        _typingDebouncer = new Debouncer(TimeSpan.FromSeconds(1), SendTypingIndicatorInternal);
-        _presenceDebouncer = new Debouncer(TimeSpan.FromMilliseconds(500), UpdatePresenceInternal);
+        _typingDebouncer = new Debouncer(TimeSpan.FromMilliseconds(AppConstants.TypingIndicatorDelayMilliseconds), SendTypingIndicatorInternal);
+        _presenceDebouncer = new Debouncer(TimeSpan.FromMilliseconds(AppConstants.PresenceUpdateDelayMilliseconds), UpdatePresenceInternal);
 
         // Subscribe to AvatarManager events
         _avatarManager.AvatarAdded += OnAvatarAdded;
@@ -381,7 +382,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             return;
         }
 
-        if (!await _connectionLock.WaitAsync(TimeSpan.FromSeconds(10)))
+        if (!await _connectionLock.WaitAsync(TimeSpan.FromSeconds(AppConstants.ConnectionLockTimeoutSeconds)))
         {
             _logger.LogError("Failed to acquire connection lock");
             ConnectionError = "System busy, please try again";
@@ -398,7 +399,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             _logger.LogInformation("Connecting to chat...");
 
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
-            cts.CancelAfter(TimeSpan.FromSeconds(30));
+            cts.CancelAfter(AppConstants.SceneReadyTimeout);
 
             await _signalRService.StartConnection();
 
@@ -444,7 +445,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     {
         if (_isLeaving) return;
 
-        if (!await _connectionLock.WaitAsync(TimeSpan.FromSeconds(5)))
+        if (!await _connectionLock.WaitAsync(TimeSpan.FromSeconds(AppConstants.NavigationLockTimeoutSeconds)))
         {
             _logger.LogError("Failed to acquire connection lock for disconnect");
             return;
@@ -493,32 +494,51 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     private async Task SendMessage()
     {
         if (string.IsNullOrWhiteSpace(MessageText))
+        {
+            _logger.LogDebug("SendMessage: Message text is empty or whitespace");
             return;
+        }
 
         if (!IsConnected)
         {
             ConnectionError = "Not connected to chat";
             HasConnectionError = true;
+            _logger.LogWarning("SendMessage: Not connected");
             return;
         }
 
-        if (!await _messageLock.WaitAsync(TimeSpan.FromSeconds(2)))
+        var trimmedMessage = MessageText.Trim();
+        
+        // Validate message length
+        if (trimmedMessage.Length > AppConstants.MaxMessageLength)
         {
-            _logger.LogWarning("Failed to acquire message lock");
+            ConnectionError = $"Message too long (max {AppConstants.MaxMessageLength} characters)";
+            HasConnectionError = true;
+            _logger.LogWarning("SendMessage: Message too long ({Length} chars)", trimmedMessage.Length);
+            return;
+        }
+
+        if (!await _messageLock.WaitAsync(TimeSpan.FromSeconds(AppConstants.MessageLockTimeoutSeconds)))
+        {
+            _logger.LogWarning("SendMessage: Failed to acquire message lock (rate limit)");
             return;
         }
 
         try
         {
-            var messageToSend = MessageText.Trim();
-            
+            // Clear the message field immediately
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                MessageText = string.Empty;
+            });
+
             // Vibration feedback - with error handling
             try
             {
                 var status = await Permissions.CheckStatusAsync<Permissions.Vibrate>();
                 if (status == PermissionStatus.Granted)
                 {
-                    Vibration.Default.Vibrate(TimeSpan.FromMilliseconds(30));
+                    Vibration.Default.Vibrate(TimeSpan.FromMilliseconds(AppConstants.VibrationDurationMilliseconds));
                 }
             }
             catch (Exception ex)
@@ -526,17 +546,9 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                 _logger.LogDebug(ex, "Vibration not available");
             }
 
-            HideKeyboard();
+            await _signalRService.SendMessageAsync(trimmedMessage);
 
-            // Clear the message field immediately
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
-                MessageText = string.Empty;
-            });
-
-            await _signalRService.SendMessageAsync(messageToSend);
-
-            _logger.LogDebug("Message sent: {Message}", messageToSend.Substring(0, Math.Min(20, messageToSend.Length)));
+            _logger.LogDebug("Message sent: {Message}", trimmedMessage.Substring(0, Math.Min(20, trimmedMessage.Length)));
         }
         catch (Exception ex)
         {
@@ -819,6 +831,18 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                         message.SenderNickname,
                         message.Content?.Length > 30 ? message.Content.Substring(0, 30) + "..." : message.Content,
                         message.IsCurrentUser);
+                    
+                    // Limit messages to prevent memory issues
+                    if (Messages.Count > AppConstants.MaxMessagesPerRoom)
+                    {
+                        var itemsToRemove = Messages.Count - AppConstants.MaxMessagesPerRoom;
+                        for (int i = 0; i < itemsToRemove; i++)
+                        {
+                            Messages.RemoveAt(0);
+                        }
+                        _logger.LogDebug("Trimmed messages to {Count} (removed {Removed})",
+                            AppConstants.MaxMessagesPerRoom, itemsToRemove);
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -856,6 +880,18 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                     SentAt = DateTimeOffset.UtcNow,
                     IsCurrentUser = false
                 });
+                
+                // Limit messages
+                if (Messages.Count > AppConstants.MaxMessagesPerRoom)
+                {
+                    var itemsToRemove = Messages.Count - AppConstants.MaxMessagesPerRoom;
+                    for (int i = 0; i < itemsToRemove; i++)
+                    {
+                        Messages.RemoveAt(0);
+                    }
+                    _logger.LogDebug("Trimmed messages to {Count} (removed {Removed})",
+                        AppConstants.MaxMessagesPerRoom, itemsToRemove);
+                }
 
                 // Get gender from avatar config
                 string gender = "male";
@@ -907,6 +943,18 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                     SentAt = DateTimeOffset.UtcNow,
                     IsCurrentUser = false
                 });
+                
+                // Limit messages
+                if (Messages.Count > AppConstants.MaxMessagesPerRoom)
+                {
+                    var itemsToRemove = Messages.Count - AppConstants.MaxMessagesPerRoom;
+                    for (int i = 0; i < itemsToRemove; i++)
+                    {
+                        Messages.RemoveAt(0);
+                    }
+                    _logger.LogDebug("Trimmed messages to {Count} (removed {Removed})",
+                        AppConstants.MaxMessagesPerRoom, itemsToRemove);
+                }
 
                 // Remove from 3D scene
                 if (_is3DEnabled)
@@ -1024,8 +1072,8 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             {
                 IsTypingVisible = true;
 
-                // Hide after 3 seconds
-                Task.Delay(3000).ContinueWith(_ =>
+                // Hide after configured delay
+                Task.Delay(AppConstants.TypingIndicatorDelayMilliseconds).ContinueWith(_ =>
                 {
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
@@ -1089,7 +1137,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                     catch { gender = "male"; }
 
                     await _avatarManager.EnsureAvatarPresenceAsync(user.UserId, user.Nickname, gender);
-                    await Task.Delay(50, _cts.Token); // Small pause between additions
+                    await Task.Delay(50, _cts.Token); // Small pause between additions (TODO: consider constant)
                 }
 
                 IsInitialPresenceLoaded = true;
@@ -1204,7 +1252,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         // Sync avatars from 3D scene and update selection
         _ = Task.Run(async () =>
         {
-            await Task.Delay(1000); // Wait for initial avatars to load
+            await Task.Delay(AppConstants.InitialAvatarLoadDelayMilliseconds); // Wait for initial avatars to load
             _logger.LogInformation("OnSceneReady: Calling SyncAvatarsAndUpdateSelection");
             await SyncAvatarsAndUpdateSelection();
         });
@@ -1233,8 +1281,8 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         {
             _logger.LogInformation("Adding self to 3D scene");
 
-            // Wait for scene readiness with timeout (30 seconds for mobile)
-            var sceneReady = await WaitForSceneWithTimeout(30000);
+            // Wait for scene readiness with timeout
+            var sceneReady = await WaitForSceneWithTimeout((int)AppConstants.SceneReadyTimeout.TotalMilliseconds);
 
             if (!sceneReady)
             {
@@ -1269,7 +1317,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                 {
                     _logger.LogInformation("✅ Camera centered on self");
                     // Wait for camera animation to complete
-                    await Task.Delay(300, _cts.Token);
+                    await Task.Delay(AppConstants.CameraAnimationDelayMilliseconds, _cts.Token);
                     // Update selected avatar from 3D scene
                     await SyncAvatarsAndUpdateSelection();
                 }
@@ -1294,7 +1342,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     private async Task<bool> WaitForSceneWithTimeout(int timeoutMs)
     {
         var startTime = DateTime.Now;
-        var checkInterval = 500; // Check every 500ms
+        var checkInterval = AppConstants.SceneReadyCheckIntervalMilliseconds; // Check every configured interval
 
         while (!_webViewService.IsSceneReady)
         {
@@ -1306,7 +1354,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
 
             // Log progress every 3 seconds
             var elapsed = (DateTime.Now - startTime).TotalMilliseconds;
-            if (elapsed > 0 && (elapsed % 3000) < 100)
+            if (elapsed > 0 && (elapsed % 3000) < 100) // TODO: make 3000 a constant
             {
                 _logger.LogDebug("Waiting for scene... ({Elapsed}ms elapsed)", elapsed);
             }
@@ -1780,12 +1828,12 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             _logger.LogInformation("NavigateLeft: startHoldNavigation returned: {Result}", result);
             
             // After a short delay, stop the hold navigation (single step)
-            await Task.Delay(500);
+            await Task.Delay(AppConstants.HoldNavigationDelayMilliseconds);
             _logger.LogInformation("NavigateLeft: Calling hubbly3d.stopHoldNavigation()");
             _ = _webViewService.EvaluateJavaScriptAsync("hubbly3d.stopHoldNavigation()", _cts.Token);
             
             // Sync and update selection after navigation
-            await Task.Delay(600); // Wait for animation
+            await Task.Delay(AppConstants.SyncAfterNavigationDelayMilliseconds); // Wait for animation
             _logger.LogInformation("NavigateLeft: Syncing avatars and updating selection");
             await SyncAvatarsAndUpdateSelection();
         }
@@ -1815,12 +1863,12 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             _logger.LogInformation("NavigateRight: startHoldNavigation returned: {Result}", result);
             
             // After a short delay, stop the hold navigation (single step)
-            await Task.Delay(500);
+            await Task.Delay(AppConstants.HoldNavigationDelayMilliseconds);
             _logger.LogInformation("NavigateRight: Calling hubbly3d.stopHoldNavigation()");
             _ = _webViewService.EvaluateJavaScriptAsync("hubbly3d.stopHoldNavigation()", _cts.Token);
             
             // Sync and update selection after navigation
-            await Task.Delay(600); // Wait for animation
+            await Task.Delay(AppConstants.SyncAfterNavigationDelayMilliseconds); // Wait for animation
             _logger.LogInformation("NavigateRight: Syncing avatars and updating selection");
             await SyncAvatarsAndUpdateSelection();
         }

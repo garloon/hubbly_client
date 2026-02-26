@@ -1,5 +1,7 @@
-﻿using Microsoft.Extensions.Logging;
+﻿using Hubbly.Mobile.Config;
+using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using System;
 
 namespace Hubbly.Mobile.Services;
 
@@ -28,6 +30,9 @@ public class WebViewService : IDisposable
     private bool _isProcessingQueue;
     private bool _disposed;
     private Timer _queueTimer;
+    private string? _cachedStats;
+    private DateTime _lastStatsCacheTime;
+    private readonly TimeSpan _statsCacheDuration = TimeSpan.FromSeconds(1);
 
     // Events
     public event EventHandler<string> OnSceneReady;
@@ -45,7 +50,8 @@ public class WebViewService : IDisposable
 
         // Timer for processing the queue (every 2 seconds)
         _queueTimer = new Timer(ProcessAvatarQueue, null,
-            TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
+            TimeSpan.FromMilliseconds(AppConstants.AvatarQueueDelayMilliseconds),
+            TimeSpan.FromMilliseconds(AppConstants.AvatarQueueDelayMilliseconds));
     }
 
     #region Public Methods
@@ -93,7 +99,7 @@ public class WebViewService : IDisposable
             return false;
         }
 
-        if (!await _avatarLock.WaitAsync(TimeSpan.FromSeconds(5)))
+        if (!await _avatarLock.WaitAsync(TimeSpan.FromSeconds(AppConstants.ConnectionLockTimeoutSeconds)))
         {
             _logger.LogError("AddAvatarAsync: Failed to acquire lock within 5 seconds");
             return false;
@@ -405,6 +411,12 @@ public class WebViewService : IDisposable
 
         try
         {
+            // Return cached stats if available and recent (within 1 second)
+            if (_cachedStats != null && DateTime.UtcNow - _lastStatsCacheTime < _statsCacheDuration)
+            {
+                return _cachedStats;
+            }
+
             var js = @"
                 (function() {
                     try {
@@ -419,7 +431,9 @@ public class WebViewService : IDisposable
             ";
 
             var result = await EvaluateJavaScriptAsync(js, _cts.Token);
-            return result ?? "{ \"error\": \"no response\" }";
+            _cachedStats = result ?? "{ \"error\": \"no response\" }";
+            _lastStatsCacheTime = DateTime.UtcNow;
+            return _cachedStats;
         }
         catch (OperationCanceledException)
         {
@@ -484,7 +498,7 @@ public class WebViewService : IDisposable
         try
         {
             // Limit size
-            if (message?.Length > 10000)
+            if (message?.Length > AppConstants.MaxJsMessageSize)
             {
                 _logger.LogWarning("HandleJsMessage: Message too large ({Length} bytes)", message?.Length ?? 0);
                 return;
@@ -602,7 +616,7 @@ public class WebViewService : IDisposable
                 _logger.LogInformation("WebView navigation successful, waiting for Three.js scene to initialize...");
                 
                 // Give Three.js more time to load (15 seconds for better reliability on mobile)
-                await Task.Delay(15000, _cts.Token);
+                await Task.Delay(AppConstants.SceneInitialLoadDelayMilliseconds, _cts.Token);
                 
                 _logger.LogInformation("Checking scene status after initial load...");
                 
@@ -616,13 +630,13 @@ public class WebViewService : IDisposable
                     _ = Task.Run(async () =>
                     {
                         var retryCount = 0;
-                        var maxRetries = 6; // 30 seconds total with 5-second intervals
+                        var maxRetries = AppConstants.MaxSceneReadyRetries;
                         
                         while (!_isSceneReady && retryCount < maxRetries && !_cts.Token.IsCancellationRequested)
                         {
                             try
                             {
-                                await Task.Delay(5000, _cts.Token);
+                                await Task.Delay(AppConstants.SceneReadyRetryIntervalMilliseconds, _cts.Token);
                                 _logger.LogInformation("Retrying scene status check (attempt {RetryCount})", retryCount + 1);
                                 var ready = await CheckSceneStatus();
                                 if (ready)
@@ -673,6 +687,12 @@ public class WebViewService : IDisposable
     {
         try
         {
+            // Early exit if already ready
+            if (_isSceneReady)
+            {
+                return true;
+            }
+
             var js = @"
                 (function() {
                     try {
@@ -731,7 +751,7 @@ public class WebViewService : IDisposable
                 try
                 {
                     using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    cts.CancelAfter(TimeSpan.FromSeconds(10)); // 10 second timeout
+                    cts.CancelAfter((int)AppConstants.WebViewEvaluateTimeout.TotalMilliseconds);
 
                     var jsResult = await _webView.EvaluateJavaScriptAsync(script);
                     result = jsResult?.ToString() ?? string.Empty;
@@ -809,7 +829,15 @@ public class WebViewService : IDisposable
     {
         if (_disposed || _isProcessingQueue) return;
 
-        if (!await _sceneLock.WaitAsync(TimeSpan.FromMilliseconds(100)))
+        // Quick check if queue is empty before acquiring lock
+        bool hasItems;
+        lock (_pendingAvatarQueue)
+        {
+            hasItems = _pendingAvatarQueue.Count > 0;
+        }
+        if (!hasItems) return;
+
+        if (!await _sceneLock.WaitAsync(TimeSpan.FromMilliseconds(AppConstants.SceneLockTimeoutMilliseconds)))
         {
             return;
         }
@@ -822,6 +850,12 @@ public class WebViewService : IDisposable
             List<Func<Task<bool>>> tasksToProcess;
             lock (_pendingAvatarQueue)
             {
+                if (_pendingAvatarQueue.Count == 0)
+                {
+                    _isProcessingQueue = false;
+                    _sceneLock.Release();
+                    return;
+                }
                 tasksToProcess = _pendingAvatarQueue.ToList();
                 _pendingAvatarQueue.Clear();
             }
@@ -851,7 +885,7 @@ public class WebViewService : IDisposable
                 }
 
                 // Pause between avatars for smoothness
-                await Task.Delay(150, _cts.Token);
+                await Task.Delay(AppConstants.AvatarProcessingDelayMilliseconds, _cts.Token);
             }
         }
         catch (OperationCanceledException)
