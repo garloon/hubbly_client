@@ -137,6 +137,21 @@
                     </VerticalStackLayout>
                 </components:Card>
 
+                <!-- Guest Conversion Section -->
+                <components:Card Title="Тестирование"
+                                 ShowTitle="True"
+                                 ShowSeparator="False"
+                                 Margin="{StaticResource SpacingSm}"
+                                 IsVisible="{Binding IsGuest}">
+                    <VerticalStackLayout Spacing="{StaticResource SpacingMd}">
+                        <Button Text="{Binding ConvertGuestButtonText}"
+                                Command="{Binding ConvertGuestCommand}"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                FontSize="16"
+                                HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                </components:Card>
+
             </VerticalStackLayout>
         </ScrollView>
 

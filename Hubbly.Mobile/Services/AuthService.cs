@@ -296,6 +296,74 @@ public class AuthService : IDisposable
 
     #endregion
 
+    #region Guest Conversion
+
+    /// <summary>
+    /// Конвертирует гостя в пользователя (заглушка)
+    /// </summary>
+    public async Task<bool> ConvertGuestToUserAsync(Guid guestUserId)
+    {
+        ThrowIfDisposed();
+
+        _logger.LogInformation("AuthService: Converting guest {GuestUserId} to user", guestUserId);
+
+        try
+        {
+            var request = new
+            {
+                GuestUserId = guestUserId
+            };
+
+            var content = new StringContent(
+                JsonSerializer.Serialize(request),
+                Encoding.UTF8,
+                "application/json");
+
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
+            cts.CancelAfter(TimeSpan.FromSeconds(10));
+
+            var response = await _httpClient.PostAsync("api/auth/convert-guest", content, cts.Token);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var error = await response.Content.ReadAsStringAsync(cts.Token);
+                _logger.LogError("AuthService: Guest conversion failed - {StatusCode} - {Error}",
+                    response.StatusCode, error);
+                return false;
+            }
+
+            _logger.LogInformation("AuthService: Guest converted successfully");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AuthService: Guest conversion exception");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Получить ID текущего пользователя из TokenManager
+    /// </summary>
+    public async Task<string?> GetCurrentUserIdAsync()
+    {
+        ThrowIfDisposed();
+
+        try
+        {
+            // User ID хранится в TokenManager под ключом "user_id"
+            var userId = await _tokenManager.GetEncryptedAsync("user_id");
+            return userId;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "AuthService: Failed to get current user ID");
+            return null;
+        }
+    }
+
+    #endregion
+
     #region Private Methods
 
     private HttpClient ConfigureHttpClient(HttpClient httpClient)

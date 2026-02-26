@@ -12,6 +12,7 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     private readonly IThemeService _themeService;
     private readonly ILocalizationService _localizationService;
     private readonly ILogger<SettingsViewModel> _logger;
+    private readonly AuthService _authService;
     private bool _disposed;
 
     [ObservableProperty]
@@ -60,13 +61,21 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private string _aboutDescription = "Real-time social hub with 3D avatars.";
 
+    // Guest conversion properties
+    [ObservableProperty]
+    private bool _isGuest = true; // TODO: определить из токена/сервиса
+
+    [ObservableProperty]
+    private string _convertGuestButtonText = "Стать пользователем";
+
     public ILocalizationService LocalizationService => _localizationService;
 
-    public SettingsViewModel(IThemeService themeService, ILocalizationService localizationService, ILogger<SettingsViewModel> logger)
+    public SettingsViewModel(IThemeService themeService, ILocalizationService localizationService, ILogger<SettingsViewModel> logger, AuthService authService)
     {
         _themeService = themeService;
         _localizationService = localizationService;
         _logger = logger;
+        _authService = authService;
 
         // Initialize from services
         _isDarkTheme = _themeService.IsDarkTheme;
@@ -91,7 +100,12 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
         AboutAppName = _localizationService.GetString("about_app_name");
         AboutVersion = _localizationService.GetString("about_version");
         AboutDescription = _localizationService.GetString("about_description");
-        
+
+        // TODO: Определить реальный статус гостя из TokenManager
+        // Пока заглушка для тестирования
+        IsGuest = true;
+        ConvertGuestButtonText = IsGuest ? "Стать пользователем" : "Вы уже пользователь";
+
         UpdateVersionText();
     }
 
@@ -219,6 +233,59 @@ public partial class SettingsViewModel : ObservableObject, IDisposable
             _logger.LogError(ex, "❌ Error closing modal page");
             // Fallback to Shell navigation
             await Shell.Current.GoToAsync("//chat");
+        }
+    }
+
+    [RelayCommand]
+    private async Task ConvertGuest()
+    {
+        if (!IsGuest) return;
+
+        _logger.LogInformation("🔄 Converting guest to user...");
+
+        try
+        {
+            // Получить userId гостя из TokenManager
+            var userIdStr = await _authService.GetCurrentUserIdAsync();
+            if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var guestUserId))
+            {
+                await Application.Current?.MainPage?.DisplayAlert(
+                    "Ошибка",
+                    "Не удалось получить ID гостя",
+                    "OK");
+                return;
+            }
+
+            // Вызвать API конвертации
+            var success = await _authService.ConvertGuestToUserAsync(guestUserId);
+
+            if (success)
+            {
+                IsGuest = false;
+                ConvertGuestButtonText = "Вы уже пользователь";
+
+                _logger.LogInformation("✅ Guest converted to user successfully");
+
+                await Application.Current?.MainPage?.DisplayAlert(
+                    "Успех",
+                    "Вы успешно стали пользователем!",
+                    "OK");
+            }
+            else
+            {
+                await Application.Current?.MainPage?.DisplayAlert(
+                    "Ошибка",
+                    "Не удалось конвертировать гостя в пользователя",
+                    "OK");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Guest conversion failed");
+            await Application.Current?.MainPage?.DisplayAlert(
+                "Ошибка",
+                "Не удалось конвертировать гостя в пользователя",
+                "OK");
         }
     }
 
