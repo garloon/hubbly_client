@@ -1,4 +1,5 @@
-﻿using Hubbly.Mobile.Models;
+﻿using Hubbly.Mobile.Config;
+ using Hubbly.Mobile.Models;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
@@ -70,8 +71,8 @@ public class SignalRService : IDisposable
         _webViewService = webViewService ?? throw new ArgumentNullException(nameof(webViewService));
         _logger = logger;
 
-        // Read server URL from Preferences
-        var serverUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
+        // Read server URL from Preferences via ServerConfig
+        var serverUrl = ServerConfig.GetServerUrl();
         _hubUrl = $"{serverUrl.TrimEnd('/')}/chatHub";
         
         _logger.LogInformation("🚀 SignalRService created with URL: {Url}", _hubUrl);

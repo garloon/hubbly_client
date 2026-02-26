@@ -1,4 +1,5 @@
-﻿using Hubbly.Mobile.Models;
+﻿using Hubbly.Mobile.Config;
+ using Hubbly.Mobile.Models;
 using Microsoft.Extensions.Logging;
 using System.Text;
 using System.Text.Json;
@@ -23,8 +24,8 @@ public class AuthService : IDisposable
         _tokenManager = tokenManager ?? throw new ArgumentNullException(nameof(tokenManager));
         _logger = logger;
 
-        // Get server URL from Preferences (consistent with SignalRService)
-        _apiBaseUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
+        // Get server URL from Preferences via ServerConfig
+        _apiBaseUrl = ServerConfig.GetServerUrl();
 
         // Configure HttpClient
         _httpClient = ConfigureHttpClient(httpClient);

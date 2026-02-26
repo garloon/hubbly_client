@@ -1,4 +1,5 @@
 ﻿using Android.Runtime;
+using Hubbly.Mobile.Config;
 using Hubbly.Mobile.Services;
 using Hubbly.Mobile.ViewModels;
 using Microsoft.Extensions.Logging;
@@ -101,8 +102,8 @@ public partial class ChatRoomPage : ContentPage, IDisposable
             // Initialize CollectionView for auto-scrolling
             InitializeCollectionView();
 
-            // Set WebView source dynamically based on server URL from Preferences
-            var serverUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
+            // Set WebView source dynamically based on server URL from ServerConfig
+            var serverUrl = ServerConfig.GetServerUrl();
             var webViewUrl = $"{serverUrl.TrimEnd('/')}/three_scene.html";
             _logger?.LogInformation("Setting WebView source to: {Url}", webViewUrl);
 
@@ -391,7 +392,7 @@ public partial class ChatRoomPage : ContentPage, IDisposable
             if (AvatarWebView != null && AvatarWebView.Source == null)
             {
                 _logger?.LogInformation("Re-initializing WebView source after cache clear");
-                var serverUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
+                var serverUrl = ServerConfig.GetServerUrl();
                 AvatarWebView.Source = $"{serverUrl.TrimEnd('/')}/three_scene.html";
             }
 

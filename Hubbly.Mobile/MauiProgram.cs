@@ -1,4 +1,5 @@
 ﻿using CommunityToolkit.Maui;
+using Hubbly.Mobile.Config;
 using Hubbly.Mobile.Converters;
 using Hubbly.Mobile.Services;
 using Hubbly.Mobile.ViewModels;
@@ -89,8 +90,8 @@ public static class MauiProgram
             var handler = new HttpClientHandler();
             var client = new HttpClient(handler);
             
-            // Read server URL from Preferences (can be changed in settings)
-            var serverUrl = Preferences.Get("server_url", "http://89.169.46.33:5000");
+            // Read server URL from Preferences via ServerConfig (can be changed in settings)
+            var serverUrl = ServerConfig.GetServerUrl();
             client.BaseAddress = new Uri(serverUrl);
             
             client.DefaultRequestHeaders.Accept.Add(new("application/json"));
