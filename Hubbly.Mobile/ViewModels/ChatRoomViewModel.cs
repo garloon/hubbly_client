@@ -1,6 +1,8 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using Hubbly.Mobile.Models;
+using Hubbly.Mobile.Messages;
 using Hubbly.Mobile.Services;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
@@ -150,8 +152,8 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         // Subscribe to SignalR events
         InitializeSignalREvents();
 
-        // Subscribe to room selection closed message
-        MessagingCenter.Subscribe<RoomSelectionViewModel>(this, "RoomSelectionClosed", async (sender) =>
+        // Subscribe to room selection closed message using WeakReferenceMessenger
+        WeakReferenceMessenger.Default.Register<RoomSelectionClosedMessage>(this, async (r, m) =>
         {
             _logger.LogInformation("Received RoomSelectionClosed message, refreshing room info");
             await RefreshRoomInfoAsync();
@@ -316,12 +318,12 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     {
         try
         {
-            _logger.LogInformation("Unsubscribing from MessagingCenter");
-            MessagingCenter.Unsubscribe<RoomSelectionViewModel>(this, "RoomSelectionClosed");
+            _logger.LogInformation("Unsubscribing from WeakReferenceMessenger");
+            WeakReferenceMessenger.Default.UnregisterAll(this);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error unsubscribing from MessagingCenter");
+            _logger.LogError(ex, "Error unsubscribing from WeakReferenceMessenger");
         }
     }
 

@@ -1,7 +1,9 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.Messaging;
 using Hubbly.Mobile.Models;
 using Hubbly.Mobile.Services;
+using Hubbly.Mobile.Messages;
 using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using Microsoft.Maui.Controls;
@@ -218,7 +220,7 @@ public partial class RoomSelectionViewModel : ObservableObject, IQueryAttributab
         _logger.LogInformation("Closing room selection modal");
         
         // Send message to ChatRoomViewModel to refresh room info
-        MessagingCenter.Send(this, "RoomSelectionClosed");
+        WeakReferenceMessenger.Default.Send(new RoomSelectionClosedMessage());
         
         // Close modal
         if (Application.Current?.MainPage is Shell shell && shell.CurrentPage?.Navigation != null)
