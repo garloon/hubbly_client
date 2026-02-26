@@ -1,5 +1,4 @@
-﻿using Android.Telephony;
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Hubbly.Mobile.Services;
 using Microsoft.Extensions.Logging;
