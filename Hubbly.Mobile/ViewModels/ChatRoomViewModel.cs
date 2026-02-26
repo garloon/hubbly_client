@@ -27,6 +27,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     private readonly AuthService _authService;
     private readonly RoomService _roomService;
     private readonly IAvatarManagerService _avatarManager;
+    private readonly IKeyboardService _keyboardService;
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
     private readonly SemaphoreSlim _messageLock = new(1, 1);
     private readonly SemaphoreSlim _syncLock = new(1, 1); // For sync/update operations
@@ -127,6 +128,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         AuthService authService,
         RoomService roomService,
         IAvatarManagerService avatarManager,
+        IKeyboardService keyboardService,
         ILogger<ChatRoomViewModel> logger)
     {
         _signalRService = signalRService ?? throw new ArgumentNullException(nameof(signalRService));
@@ -136,6 +138,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _roomService = roomService ?? throw new ArgumentNullException(nameof(roomService));
         _avatarManager = avatarManager ?? throw new ArgumentNullException(nameof(avatarManager));
+        _keyboardService = keyboardService ?? throw new ArgumentNullException(nameof(keyboardService));
 
         _logger = logger;
 
@@ -1219,20 +1222,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
 
     private void HideKeyboard()
     {
-#if ANDROID
-        MainThread.BeginInvokeOnMainThread(() =>
-        {
-            var activity = Platform.CurrentActivity;
-            var inputMethodManager = activity.GetSystemService(Android.Content.Context.InputMethodService)
-                as Android.Views.InputMethods.InputMethodManager;
-            var currentFocus = activity.CurrentFocus;
-            if (currentFocus != null)
-            {
-                inputMethodManager?.HideSoftInputFromWindow(currentFocus.WindowToken, 0);
-                currentFocus.ClearFocus();
-            }
-        });
-#endif
+        _keyboardService.HideKeyboard();
     }
 
     private async Task AddSelfTo3DScene()

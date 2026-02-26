@@ -85,6 +85,13 @@ public static class MauiProgram
         services.AddSingleton<ILogViewerService, LogViewerService>();
         services.AddSingleton<IThemeService, ThemeService>();
         services.AddSingleton<ILocalizationService, LocalizationService>();
+        
+        // Platform-specific services
+#if ANDROID
+        services.AddSingleton<IKeyboardService, Platforms.Android.KeyboardService>();
+#else
+        services.AddSingleton<IKeyboardService, NullKeyboardService>();
+#endif
 
         // HTTP client (Singleton)
         services.AddSingleton<HttpClient>(sp =>
