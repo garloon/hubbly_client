@@ -1664,6 +1664,15 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             }
 
             AvatarAtCenterDto? avatarData = null;
+            
+            // Валидация JSON перед десериализацией
+            if (string.IsNullOrEmpty(avatarJson) || avatarJson.Length < 2 ||
+                !avatarJson.StartsWith("{") || !avatarJson.EndsWith("}"))
+            {
+                _logger.LogWarning("UpdateSelectedAvatarFrom3DScene: Invalid JSON format: {Json}", avatarJson);
+                return;
+            }
+            
             try
             {
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
@@ -1821,6 +1830,13 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             if (string.IsNullOrEmpty(avatarsJson) || avatarsJson == "null")
             {
                 _logger.LogWarning("SyncAvatarsFrom3DScene: getAvatars returned null or empty");
+                return;
+            }
+
+            // Валидация JSON структуры
+            if (avatarsJson.Length < 2 || !avatarsJson.StartsWith("[") || !avatarsJson.EndsWith("]"))
+            {
+                _logger.LogWarning("SyncAvatarsFrom3DScene: Invalid JSON format: {Json}", avatarsJson);
                 return;
             }
 

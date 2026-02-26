@@ -180,6 +180,16 @@ public partial class RoomSelectionViewModel : ObservableObject, IQueryAttributab
 
             var result = await _roomService.JoinRoomAsync(targetRoom.RoomId);
             
+            // Проверка на null
+            if (result == null)
+            {
+                await Application.Current.MainPage.DisplayAlert(
+                    "Error",
+                    "Failed to join room. The room may be full, inactive, or you lack permissions.",
+                    "OK");
+                return;
+            }
+
             // Update current room ID
             await _tokenManager.SetAsync("current_room_id", result.RoomId.ToString());
             

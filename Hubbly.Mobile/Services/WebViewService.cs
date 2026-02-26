@@ -452,7 +452,19 @@ public class WebViewService : IDisposable
             ";
 
             var result = await EvaluateJavaScriptAsync(js, cancellationToken);
-            return JsonSerializer.Deserialize<List<AvatarInfo>>(result ?? "[]") ?? new();
+            
+            // Валидация JSON перед десериализацией
+            if (string.IsNullOrWhiteSpace(result) || result.Length < 2 ||
+                !result.StartsWith("[") || !result.EndsWith("]"))
+            {
+                _logger.LogWarning("GetAvatarsAsync: Invalid JSON received: {Result}", result);
+                return new List<AvatarInfo>();
+            }
+
+            return JsonSerializer.Deserialize<List<AvatarInfo>>(result, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            }) ?? new List<AvatarInfo>();
         }
         catch (OperationCanceledException)
         {
