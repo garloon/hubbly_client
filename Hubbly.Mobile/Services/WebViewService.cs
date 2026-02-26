@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace Hubbly.Mobile.Services;
 
@@ -453,18 +454,41 @@ public class WebViewService : IDisposable
 
             var result = await EvaluateJavaScriptAsync(js, cancellationToken);
             
-            // Валидация JSON перед десериализацией
-            if (string.IsNullOrWhiteSpace(result) || result.Length < 2 ||
-                !result.StartsWith("[") || !result.EndsWith("]"))
+            // Улучшенная валидация JSON перед десериализацией
+            if (string.IsNullOrWhiteSpace(result) || result.Length < 2)
             {
-                _logger.LogWarning("GetAvatarsAsync: Invalid JSON received: {Result}", result);
+                _logger.LogWarning("GetAvatarsAsync: Empty or too short response: {Result}", result);
                 return new List<AvatarInfo>();
             }
 
-            return JsonSerializer.Deserialize<List<AvatarInfo>>(result, new JsonSerializerOptions
+            // Проверка на валидный JSON массив
+            var trimmed = result.TrimStart();
+            if (!trimmed.StartsWith('['))
             {
-                PropertyNameCaseInsensitive = true
-            }) ?? new List<AvatarInfo>();
+                _logger.LogWarning("GetAvatarsAsync: Response does not start with '[': {Result}", result);
+                return new List<AvatarInfo>();
+            }
+
+            trimmed = result.TrimEnd();
+            if (!trimmed.EndsWith(']'))
+            {
+                _logger.LogWarning("GetAvatarsAsync: Response does not end with ']': {Result}", result);
+                return new List<AvatarInfo>();
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<List<AvatarInfo>>(result, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+                }) ?? new List<AvatarInfo>();
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "GetAvatarsAsync: JSON parse error for: {Result}", result);
+                return new List<AvatarInfo>();
+            }
         }
         catch (OperationCanceledException)
         {

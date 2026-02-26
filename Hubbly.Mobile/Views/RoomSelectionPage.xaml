@@ -187,7 +187,7 @@
                                           HeightRequest="32"
                                           VerticalOptions="Center">
                                         <Frame Padding="0"
-                                               BackgroundColor="{Binding IsCurrent, Converter={StaticResource InverseBoolConverter}}"
+                                               BackgroundColor="{Binding IsCurrent, Converter={StaticResource RoomIsCurrentConverter}}"
                                                CornerRadius="16"
                                                HasShadow="False"
                                                VerticalOptions="Center"
