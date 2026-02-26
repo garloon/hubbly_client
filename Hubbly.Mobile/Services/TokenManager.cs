@@ -35,7 +35,7 @@ public class TokenManager : IDisposable
         if (value == null)
             throw new ArgumentNullException(nameof(value));
 
-        _logger.LogDebug($"📝 TokenManager.Set: {key} = {value?.Substring(0, Math.Min(8, value?.Length ?? 0))}...");
+        _logger.LogDebug($"📝 TokenManager.Set: {key} (value hidden for security)");
 
         var tokenInfo = new TokenInfo
         {
@@ -60,8 +60,7 @@ public class TokenManager : IDisposable
             throw new ArgumentNullException(nameof(key));
 
         var tokenInfo = await GetTokenInfoAsync(key);
-        var valuePreview = tokenInfo?.Value?.Substring(0, Math.Min(8, tokenInfo?.Value?.Length ?? 0));
-        _logger.LogDebug($"📖 TokenManager.Get: {key} = {valuePreview}...");
+        _logger.LogDebug($"📖 TokenManager.Get: {key} (value hidden for security)");
 
         return tokenInfo?.Value ?? string.Empty;
     }
@@ -208,7 +207,7 @@ public class TokenManager : IDisposable
         if (value == null)
             throw new ArgumentNullException(nameof(value));
 
-        _logger.LogDebug($"💾 TokenManager.Set: {key} = {value?.Substring(0, Math.Min(8, value?.Length ?? 0))}...");
+        _logger.LogDebug($"💾 TokenManager.Set: {key} (value hidden for security)");
 
         // Store directly in Preferences (no encryption for debug)
         Preferences.Set(key, value);
