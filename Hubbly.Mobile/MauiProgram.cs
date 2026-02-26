@@ -104,6 +104,7 @@ public static class MauiProgram
         // Business services (Singleton)
         services.AddSingleton<AuthService>();
         services.AddSingleton<IHeartbeatService, HeartbeatService>();
+        services.AddSingleton<IAvatarManagerService, AvatarManagerService>();
         services.AddSingleton<SignalRService>(); // Depends on TokenManager, AuthService, and HeartbeatService
         services.AddSingleton<RoomService>(); // REST API service for room management
 

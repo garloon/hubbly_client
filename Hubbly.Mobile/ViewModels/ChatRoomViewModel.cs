@@ -11,6 +11,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Linq;
 using static Hubbly.Mobile.Services.SignalRService;
+using System.Linq;
 
 namespace Hubbly.Mobile.ViewModels;
 
@@ -23,12 +24,11 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     private readonly TokenManager _tokenManager;
     private readonly AuthService _authService;
     private readonly RoomService _roomService;
+    private readonly IAvatarManagerService _avatarManager;
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
-    private readonly SemaphoreSlim _avatarLock = new(1, 1);
     private readonly SemaphoreSlim _messageLock = new(1, 1);
     private readonly SemaphoreSlim _syncLock = new(1, 1); // For sync/update operations
     private readonly CancellationTokenSource _cts = new();
-    private readonly HashSet<string> _processedUserIds = new();
     private readonly Debouncer _typingDebouncer;
     private readonly Debouncer _presenceDebouncer;
 
@@ -58,11 +58,13 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     [ObservableProperty]
     private ObservableCollection<ChatMessage> _messages = new();
 
-    [ObservableProperty]
-    private ObservableCollection<AvatarPresence> _onlineAvatars = new();
-
-    [ObservableProperty]
-    private AvatarPresence? _selectedAvatar;
+    // Avatar collection is now managed by AvatarManagerService
+    private ObservableCollection<AvatarPresence> OnlineAvatars => _avatarManager.OnlineAvatars;
+    private AvatarPresence? SelectedAvatar
+    {
+        get => _avatarManager.SelectedAvatar;
+        set => _avatarManager.SelectedAvatar = value;
+    }
 
     [ObservableProperty]
     private bool _isControlPanelVisible = false;
@@ -122,6 +124,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         TokenManager tokenManager,
         AuthService authService,
         RoomService roomService,
+        IAvatarManagerService avatarManager,
         ILogger<ChatRoomViewModel> logger)
     {
         _signalRService = signalRService ?? throw new ArgumentNullException(nameof(signalRService));
@@ -130,12 +133,20 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         _tokenManager = tokenManager ?? throw new ArgumentNullException(nameof(tokenManager));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _roomService = roomService ?? throw new ArgumentNullException(nameof(roomService));
+        _avatarManager = avatarManager ?? throw new ArgumentNullException(nameof(avatarManager));
 
         _logger = logger;
 
         _typingDebouncer = new Debouncer(TimeSpan.FromSeconds(1), SendTypingIndicatorInternal);
         _presenceDebouncer = new Debouncer(TimeSpan.FromMilliseconds(500), UpdatePresenceInternal);
 
+        // Subscribe to AvatarManager events
+        _avatarManager.AvatarAdded += OnAvatarAdded;
+        _avatarManager.AvatarRemoved += OnAvatarRemoved;
+
+        // Subscribe to AvatarManager events
+        InitializeAvatarManagerEvents();
+        
         // Subscribe to SignalR events
         InitializeSignalREvents();
 
@@ -195,22 +206,10 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                 CurrentUserAvatar = new AvatarConfigDto { Gender = "male" };
             }
 
-            // Add self to presence list
+            // Add self to presence list and 3D scene via AvatarManager
             if (Guid.TryParse(_userId, out var userIdGuid))
             {
-                var selfPresence = new AvatarPresence
-                {
-                    UserId = userIdGuid,
-                    Nickname = _nickname,
-                    AvatarConfig = CurrentUserAvatar,
-                    JoinedAt = DateTime.UtcNow,
-                    IsCurrentUser = true
-                };
-
-                await MainThread.InvokeOnMainThreadAsync(() =>
-                {
-                    OnlineAvatars.Add(selfPresence);
-                });
+                await _avatarManager.EnsureAvatarPresenceAsync(_userId, _nickname, CurrentUserAvatar.Gender, true);
             }
         }
         catch (Exception ex)
@@ -246,6 +245,43 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         {
             _logger.LogError(ex, "Error initializing SignalR events");
         }
+    }
+
+    private void InitializeAvatarManagerEvents()
+    {
+        try
+        {
+            _avatarManager.AvatarAdded += OnAvatarAdded;
+            _avatarManager.AvatarRemoved += OnAvatarRemoved;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error initializing AvatarManager events");
+        }
+    }
+
+    private void UnsubscribeAvatarManagerEvents()
+    {
+        try
+        {
+            _avatarManager.AvatarAdded -= OnAvatarAdded;
+            _avatarManager.AvatarRemoved -= OnAvatarRemoved;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error unsubscribing from AvatarManager events");
+        }
+    }
+
+    private void OnAvatarAdded(object? sender, AvatarPresence avatar)
+    {
+        // Avatar already added to collection by AvatarManager, just handle any additional logic
+        _logger.LogDebug("Avatar added event received: {Nickname}", avatar.Nickname);
+    }
+
+    private void OnAvatarRemoved(object? sender, string userId)
+    {
+        _logger.LogDebug("Avatar removed event received: {UserId}", userId);
     }
 
     private void UnsubscribeSignalREvents()
@@ -432,7 +468,6 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             {
                 Messages.Clear();
                 OnlineAvatars.Clear();
-                _processedUserIds.Clear();
             });
 
             _logger.LogInformation("Disconnected and cleared data");
@@ -832,11 +867,13 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                     gender = "male";
                 }
 
-                // Add to 3D scene
-                await Ensure3DAvatarPresence(userData.UserId, userData.Nickname, gender);
-                
-                // Sync avatars from 3D scene and update selection
-                await SyncAvatarsAndUpdateSelection();
+                // Delegate avatar management to AvatarManagerService
+                await _avatarManager.EnsureAvatarPresenceAsync(
+                    userData.UserId.ToString(),
+                    userData.Nickname,
+                    gender,
+                    false
+                );
             });
         }
         catch (Exception ex)
@@ -856,16 +893,6 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                 UsersInRoom = Math.Max(0, UsersInRoom - 1);
                 RoomStatus = $"{UsersInRoom}/{MaxUsers}";
 
-                // Remove from presence list
-                var avatar = OnlineAvatars.FirstOrDefault(a => a.UserId.ToString() == data.UserId);
-                if (avatar != null)
-                {
-                    OnlineAvatars.Remove(avatar);
-                }
-
-                // Remove from processed users set to allow re-adding if they rejoin
-                _processedUserIds.Remove(data.UserId);
-
                 // Add system message with nickname
                 Messages.Add(new ChatMessage
                 {
@@ -881,6 +908,9 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                 {
                     await _webViewService.RemoveAvatarAsync(data.UserId);
                 }
+
+                // Delegate avatar removal to AvatarManagerService
+                _avatarManager.RemoveAvatar(data.UserId);
 
                 // Check if selected avatar was removed
                 if (SelectedAvatar?.UserId.ToString() == data.UserId)
@@ -1053,7 +1083,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
                     }
                     catch { gender = "male"; }
 
-                    await Ensure3DAvatarPresence(user.UserId, user.Nickname, gender);
+                    await _avatarManager.EnsureAvatarPresenceAsync(user.UserId, user.Nickname, gender);
                     await Task.Delay(50, _cts.Token); // Small pause between additions
                 }
 
@@ -1295,54 +1325,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         return true;
     }
 
-    private async Task Ensure3DAvatarPresence(string userId, string nickname, string gender)
-    {
-        if (!Is3DEnabled) return;
-
-        await _avatarLock.WaitAsync(_cts.Token);
-        try
-        {
-            if (_processedUserIds.Contains(userId))
-            {
-                _logger.LogDebug("Avatar {Nickname} already processed", nickname);
-                return;
-            }
-
-            _processedUserIds.Add(userId);
-
-            // Add to UI list
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
-                if (!OnlineAvatars.Any(a => a.UserId.ToString() == userId))
-                {
-                    OnlineAvatars.Add(new AvatarPresence
-                    {
-                        UserId = Guid.Parse(userId),
-                        Nickname = nickname,
-                        AvatarConfig = AvatarConfigDto.FromJson($"{{\"gender\":\"{gender}\"}}"),
-                        JoinedAt = DateTime.UtcNow,
-                        IsCurrentUser = false
-                    });
-                }
-            });
-
-            // Add to 3D scene
-            var success = await _webViewService.AddAvatarAsync(userId, nickname, gender);
-
-            if (success)
-            {
-                _logger.LogDebug("✅ Avatar {Nickname} added to 3D scene", nickname);
-            }
-            else
-            {
-                _logger.LogWarning("❌ Failed to add {Nickname} to 3D scene", nickname);
-            }
-        }
-        finally
-        {
-            _avatarLock.Release();
-        }
-    }
+    // Removed - Avatar management delegated to AvatarManagerService
 
     private async Task ShowAvatarActionSheet()
     {
@@ -1560,18 +1543,16 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
 
         // Dispose sync resources
         _connectionLock.Dispose();
-        _avatarLock.Dispose();
         _messageLock.Dispose();
 
         _typingDebouncer.Dispose();
         _presenceDebouncer.Dispose();
 
         UnsubscribeSignalREvents();
+        UnsubscribeAvatarManagerEvents();
         UnsubscribeMessagingCenter();
 
-        _processedUserIds.Clear();
         Messages.Clear();
-        OnlineAvatars.Clear();
 
         _disposed = true;
         GC.SuppressFinalize(this);
@@ -1776,124 +1757,15 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     /// </summary>
     private async Task SyncAvatarsAndUpdateSelection()
     {
-        await _syncLock.WaitAsync(_cts.Token);
-        try
-        {
-            _logger.LogInformation("SyncAvatarsAndUpdateSelection started");
-            
-            await SyncAvatarsFrom3DScene();
-            
-            // Ensure we have a selected avatar after sync
-            if (SelectedAvatar == null && OnlineAvatars.Any())
-            {
-                var fallback = OnlineAvatars.FirstOrDefault(a => a.IsCurrentUser) ?? OnlineAvatars.First();
-                _logger.LogWarning("SyncAvatarsAndUpdateSelection: No selected avatar, fallback to {Nickname}", fallback.Nickname);
-                
-                // Center camera on fallback avatar
-                var userId = fallback.UserId.ToString();
-                var selectSuccess = await _webViewService.SelectAvatarAsync(userId);
-                if (selectSuccess)
-                {
-                    await Task.Delay(200, _cts.Token);
-                }
-            }
-            
-            await UpdateSelectedAvatarFrom3DScene();
-            _logger.LogInformation("SyncAvatarsAndUpdateSelection completed");
-        }
-        finally
-        {
-            _syncLock.Release();
-        }
+        _logger.LogDebug("SyncAvatarsAndUpdateSelection - delegating to AvatarManager");
+        await _avatarManager.SyncAvatarsFromSceneAsync();
     }
 
-    /// <summary>
-    /// Synchronizes avatars list with 3D scene (called on SignalR events)
-    /// </summary>
+    // Removed - Avatar synchronization now handled by AvatarManagerService
     private async Task SyncAvatarsFrom3DScene()
     {
-        _logger.LogInformation("SyncAvatarsFrom3DScene called - Is3DEnabled: {Is3DEnabled}, SceneReady: {SceneReady}, OnlineAvatars before: {Count}",
-            Is3DEnabled, _webViewService?.IsSceneReady, OnlineAvatars.Count);
-        
-        if (!Is3DEnabled || !_webViewService.IsSceneReady)
-        {
-            _logger.LogWarning("SyncAvatarsFrom3DScene: Skipping - 3D not enabled or scene not ready");
-            return;
-        }
-
-        try
-        {
-            _logger.LogInformation("SyncAvatarsFrom3DScene: Calling hubbly3d.getAvatars()");
-            var avatarsJson = await _webViewService.EvaluateJavaScriptAsync("hubbly3d.getAvatars()", _cts.Token);
-            _logger.LogInformation("SyncAvatarsFrom3DScene: getAvatars returned: {Json}", avatarsJson);
-            
-            if (string.IsNullOrEmpty(avatarsJson) || avatarsJson == "null")
-            {
-                _logger.LogWarning("SyncAvatarsFrom3DScene: getAvatars returned null or empty");
-                return;
-            }
-
-            // Валидация JSON структуры
-            if (avatarsJson.Length < 2 || !avatarsJson.StartsWith("[") || !avatarsJson.EndsWith("]"))
-            {
-                _logger.LogWarning("SyncAvatarsFrom3DScene: Invalid JSON format: {Json}", avatarsJson);
-                return;
-            }
-
-            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-            var avatars = System.Text.Json.JsonSerializer.Deserialize<List<AvatarInfoDto>>(avatarsJson, options);
-            if (avatars == null)
-            {
-                _logger.LogWarning("SyncAvatarsFrom3DScene: Deserialization returned null");
-                return;
-            }
-
-            _logger.LogInformation("SyncAvatarsFrom3DScene: Deserialized {Count} avatars from 3D scene", avatars.Count);
-
-            await MainThread.InvokeOnMainThreadAsync(() =>
-            {
-                // Update OnlineAvatars collection based on 3D scene
-                foreach (var avatarInfo in avatars)
-                {
-                    // Try to parse UserId as GUID
-                    if (!Guid.TryParse(avatarInfo.UserId, out var userIdGuid))
-                    {
-                        _logger.LogWarning("SyncAvatarsFrom3DScene: Invalid GUID format for userId '{UserId}', skipping avatar {Nickname}",
-                            avatarInfo.UserId, avatarInfo.Nickname);
-                        continue;
-                    }
-
-                    var existing = OnlineAvatars.FirstOrDefault(a => a.UserId == userIdGuid);
-                    if (existing == null)
-                    {
-                        OnlineAvatars.Add(new AvatarPresence
-                        {
-                            UserId = userIdGuid,
-                            Nickname = avatarInfo.Nickname,
-                            AvatarConfig = new AvatarConfigDto { Gender = avatarInfo.Gender },
-                            JoinedAt = DateTime.UtcNow,
-                            IsCurrentUser = avatarInfo.UserId == _userId
-                        });
-                        _logger.LogInformation("SyncAvatarsFrom3DScene: Added avatar {Nickname} ({UserId})", avatarInfo.Nickname, userIdGuid);
-                    }
-                }
-
-                // Remove avatars that are no longer in 3D scene
-                var toRemove = OnlineAvatars.Where(a => !avatars.Any(v => Guid.TryParse(v.UserId, out var vid) && vid == a.UserId)).ToList();
-                foreach (var removed in toRemove)
-                {
-                    _logger.LogInformation("SyncAvatarsFrom3DScene: Removing avatar {Nickname} ({UserId})", removed.Nickname, removed.UserId);
-                    OnlineAvatars.Remove(removed);
-                }
-            });
-
-            _logger.LogInformation("SyncAvatarsFrom3DScene: OnlineAvatars count after sync: {Count}", OnlineAvatars.Count);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error syncing avatars from 3D scene");
-            throw; // Re-throw for caller
-        }
+        _logger.LogDebug("SyncAvatarsFrom3DScene - delegating to AvatarManager");
+        await _avatarManager.SyncAvatarsFromSceneAsync();
     }
 
     [RelayCommand]
