@@ -7,17 +7,19 @@ public class TokenRefresh : ITokenRefresh
 {
     private readonly ILogger<TokenRefresh> _logger;
     private readonly ITokenStorage _storage;
+    private readonly ITokenHttpService _tokenHttpService;
     private readonly SemaphoreSlim _refreshLock = new(1, 1);
     private Task<string>? _refreshTask;
     private bool _isRefreshing;
 
-    public TokenRefresh(ITokenStorage storage, ILogger<TokenRefresh> logger)
+    public TokenRefresh(ITokenStorage storage, ITokenHttpService tokenHttpService, ILogger<TokenRefresh> logger)
     {
         _storage = storage;
+        _tokenHttpService = tokenHttpService;
         _logger = logger;
     }
 
-    public async Task<string?> RefreshTokenAsync(AuthService authService)
+    public async Task<string?> RefreshTokenAsync()
     {
         try
         {
@@ -42,7 +44,7 @@ public class TokenRefresh : ITokenRefresh
             using var cts = new CancellationTokenSource();
             cts.CancelAfter(AppConstants.TokenRefreshTimeout);
 
-            var authResponse = await authService.RefreshTokenAsync(refreshToken, deviceId);
+            var authResponse = await _tokenHttpService.RefreshTokenAsync(refreshToken, deviceId);
 
             // Save new tokens
             await _storage.SetAsync("access_token", authResponse.AccessToken, AppConstants.AccessTokenExpiration);
@@ -75,7 +77,7 @@ public class TokenRefresh : ITokenRefresh
         }
     }
 
-    public async Task<string> GetValidTokenAsync(AuthService authService)
+    public async Task<string> GetValidTokenAsync()
     {
         // Simple sequential synchronization
         if (_refreshTask != null)
@@ -95,7 +97,7 @@ public class TokenRefresh : ITokenRefresh
 
             // Start refresh
             _isRefreshing = true;
-            _refreshTask = RefreshTokenInternalAsync(authService);
+            _refreshTask = RefreshTokenInternalAsync();
 
             return await _refreshTask;
         }
@@ -160,9 +162,9 @@ public class TokenRefresh : ITokenRefresh
         };
     }
 
-    private async Task<string> RefreshTokenInternalAsync(AuthService authService)
+    private async Task<string> RefreshTokenInternalAsync()
     {
-        var result = await RefreshTokenAsync(authService);
+        var result = await RefreshTokenAsync();
         return result ?? throw new InvalidOperationException("Token refresh failed");
     }
 }

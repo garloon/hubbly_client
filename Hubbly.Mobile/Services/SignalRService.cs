@@ -387,7 +387,7 @@ public class SignalRService : IDisposable
         _logger.LogInformation("🔧 Creating new HubConnection");
 
         // Get valid token
-        var accessToken = await _tokenManager.GetValidTokenAsync(_authService);
+        var accessToken = await _tokenManager.GetValidTokenAsync();
         if (string.IsNullOrEmpty(accessToken))
         {
             throw new InvalidOperationException("No valid access token available");
@@ -400,7 +400,7 @@ public class SignalRService : IDisposable
             {
                 options.AccessTokenProvider = async () =>
                 {
-                    var token = await _tokenManager.GetValidTokenAsync(_authService);
+                    var token = await _tokenManager.GetValidTokenAsync();
                     _logger.LogDebug($"SignalR: Token provided, exists: {!string.IsNullOrEmpty(token)}");
                     return token;
                 };
@@ -532,7 +532,7 @@ public class SignalRService : IDisposable
             try
             {
                 _logger.LogInformation("SignalR: 401 detected, refreshing token...");
-                await _tokenManager.GetValidTokenAsync(_authService);
+                await _tokenManager.GetValidTokenAsync();
                 await TryReconnectWithBackoff();
             }
             catch (Exception ex)

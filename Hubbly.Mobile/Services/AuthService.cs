@@ -2,6 +2,7 @@
 using Hubbly.Mobile.Models;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 
@@ -11,7 +12,8 @@ public class AuthService : IDisposable
 {
     private readonly HttpClient _httpClient;
     private readonly DeviceIdService _deviceIdService;
-    private readonly TokenManager _tokenManager;
+    private readonly ITokenStorage _tokenStorage;
+    private readonly ITokenRefresh _tokenRefresh;
     private readonly ILogger<AuthService> _logger;
     private readonly SemaphoreSlim _authLock = new(1, 1);
     private readonly CancellationTokenSource _cts = new();
@@ -19,10 +21,16 @@ public class AuthService : IDisposable
 
     private bool _disposed;
 
-    public AuthService(HttpClient httpClient, DeviceIdService deviceIdService, TokenManager tokenManager, ILogger<AuthService> logger)
+    public AuthService(
+        HttpClient httpClient,
+        DeviceIdService deviceIdService,
+        ITokenStorage tokenStorage,
+        ITokenRefresh tokenRefresh,
+        ILogger<AuthService> logger)
     {
         _deviceIdService = deviceIdService ?? throw new ArgumentNullException(nameof(deviceIdService));
-        _tokenManager = tokenManager ?? throw new ArgumentNullException(nameof(tokenManager));
+        _tokenStorage = tokenStorage ?? throw new ArgumentNullException(nameof(tokenStorage));
+        _tokenRefresh = tokenRefresh ?? throw new ArgumentNullException(nameof(tokenRefresh));
         _logger = logger;
 
         // Get server URL from Preferences via ServerConfig
@@ -58,112 +66,59 @@ public class AuthService : IDisposable
         else
         {
             // Use default male config if none provided
-            avatarConfigJson = new AvatarConfigDto { Gender = "male" }.ToJson();
+            avatarConfigJson = AvatarConfigDto.DefaultMale.ToJson();
         }
 
-        if (!await _authLock.WaitAsync(TimeSpan.FromSeconds(AppConstants.AuthLockTimeoutSeconds)))
-        {
-            _logger.LogError("AuthService: Failed to acquire lock within 10 seconds");
-            throw new TimeoutException("Authentication service is busy");
-        }
+        // Get or create device ID
+        var deviceId = await GetOrCreateDeviceIdAsync();
 
         try
         {
-            _logger.LogInformation("AuthService: Starting guest authentication");
-
-            var deviceId = _deviceIdService.GetPersistentDeviceId();
+            _logger.LogInformation("AuthService: Authenticating guest with avatar...");
 
             var request = new
             {
-                DeviceId = deviceId,
-                AvatarConfigJson = avatarConfigJson
+                avatarConfig = avatarConfigJson,
+                deviceId = deviceId
             };
 
-            var content = new StringContent(
-                JsonSerializer.Serialize(request),
-                Encoding.UTF8,
-                "application/json");
-
-            // Use retry with exponential backoff for transient errors
-            var authResponse = await ExecuteWithRetryAsync(
-                async () =>
-                {
-                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
-                    cts.CancelAfter(TimeSpan.FromSeconds(AppConstants.AuthTimeoutSeconds));
-
-                    var response = await _httpClient.PostAsync("api/auth/guest", content, cts.Token);
-
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        var error = await response.Content.ReadAsStringAsync(cts.Token);
-                        _logger.LogError("AuthService: Authentication failed - {StatusCode} - {Error}",
-                            response.StatusCode, error);
-
-                        throw new HttpRequestException($"Authentication failed: {response.StatusCode} - {error}");
-                    }
-
-                    var responseContent = await response.Content.ReadAsStringAsync(cts.Token);
-
-                    var options = new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    };
-
-                    var result = JsonSerializer.Deserialize<AuthResponse>(responseContent, options);
-
-                    if (result == null)
-                    {
-                        throw new Exception("Failed to deserialize auth response");
-                    }
-
-                    return result;
-                },
-                cancellationToken: _cts.Token);
-
-            // Save nickname (encrypted)
-            if (!string.IsNullOrEmpty(authResponse?.User?.Nickname))
+            var response = await _httpClient.PostAsJsonAsync("api/auth/guest-avatar", request);
+            
+            if (!response.IsSuccessStatusCode)
             {
-                // Use TokenManager for encryption
-                await _tokenManager.SetEncryptedAsync("nickname", authResponse.User.Nickname);
-                _logger.LogInformation("✅ Saved nickname from server (encrypted): {Nickname}", authResponse.User.Nickname);
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogError("AuthService: Guest auth failed - {StatusCode}: {Error}", 
+                    response.StatusCode, errorContent);
+                response.EnsureSuccessStatusCode();
             }
 
-            // Save user ID (encrypted)
-            if (authResponse?.User?.Id != Guid.Empty)
+            var authResponse = await response.Content.ReadFromJsonAsync<AuthResponse>()
+                ?? throw new InvalidOperationException("Empty response from server");
+
+            // Save tokens
+            await _tokenStorage.SetAsync("access_token", authResponse.AccessToken, AppConstants.AccessTokenExpiration);
+            await _tokenStorage.SetAsync("refresh_token", authResponse.RefreshToken, AppConstants.RefreshTokenExpiration);
+            await _tokenStorage.SetAsync("user_id", authResponse.UserId.ToString());
+            await _tokenStorage.SetAsync("nickname", authResponse.Nickname);
+            await _tokenStorage.SetAsync("device_id", deviceId);
+
+            // Save device ID in Preferences for later use
+            Preferences.Set("server_device_id", deviceId);
+            Preferences.Set("persistent_device_id", _deviceIdService.GetPersistentDeviceId());
+
+            // Save token expiration if provided
+            if (authResponse.ExpiresAt.HasValue)
             {
-                await _tokenManager.SetEncryptedAsync("user_id", authResponse.User.Id.ToString());
+                Preferences.Set("access_token_expires", authResponse.ExpiresAt.Value.ToString("o"));
             }
 
-            // Save server device ID (if provided) for token refresh
-            if (!string.IsNullOrEmpty(authResponse.DeviceId))
-            {
-                Preferences.Set("server_device_id", authResponse.DeviceId);
-                _logger.LogInformation("AuthService: Saved server device ID: {DeviceId}", authResponse.DeviceId);
-            }
-
-            _logger.LogInformation("AuthService: Authentication successful for user {UserId}",
-                authResponse?.User?.Id);
-
+            _logger.LogInformation("AuthService: Guest authenticated successfully. UserId: {UserId}", authResponse.UserId);
             return authResponse;
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogError("AuthService: Authentication timeout");
-            throw new TimeoutException("Authentication request timed out");
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError(ex, "AuthService: Network error during authentication");
-            throw;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "AuthService: Unexpected error during authentication");
+            _logger.LogError(ex, "AuthService: Guest authentication failed");
             throw;
-        }
-        finally
-        {
-            _authLock.Release();
         }
     }
 
@@ -171,87 +126,17 @@ public class AuthService : IDisposable
     {
         ThrowIfDisposed();
 
-        if (string.IsNullOrWhiteSpace(refreshToken))
-        {
-            throw new ArgumentException("Refresh token cannot be null or empty", nameof(refreshToken));
-        }
+        // This method is now DEPRECATED - use ITokenRefresh directly
+        // Kept for backward compatibility during transition
+        _logger.LogWarning("AuthService.RefreshTokenAsync is deprecated. Use ITokenRefresh directly.");
+        
+        var result = await _tokenRefresh.RefreshTokenAsync();
+        if (result == null)
+            throw new InvalidOperationException("Token refresh failed");
 
-        if (string.IsNullOrWhiteSpace(deviceId))
-        {
-            throw new ArgumentException("Device ID cannot be null or empty", nameof(deviceId));
-        }
-
-        // Validate refresh token format (should be a non-empty string, could add more checks)
-        if (refreshToken.Length < 20)
-        {
-            _logger.LogWarning("AuthService: Refresh token suspiciously short ({Length} chars)", refreshToken.Length);
-        }
-
-        _logger.LogInformation("AuthService: Refreshing token for device {DeviceId}", deviceId);
-
-        var request = new
-        {
-            RefreshToken = refreshToken,
-            DeviceId = deviceId
-        };
-
-        var content = new StringContent(
-            JsonSerializer.Serialize(request),
-            Encoding.UTF8,
-            "application/json");
-
-        try
-        {
-            // Use retry with exponential backoff for transient errors
-            var authResponse = await ExecuteWithRetryAsync(
-                async () =>
-                {
-                    using var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
-                    cts.CancelAfter((int)AppConstants.TokenRefreshTimeout.TotalMilliseconds);
-
-                    var response = await _httpClient.PostAsync("api/auth/refresh", content, cts.Token);
-
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        var error = await response.Content.ReadAsStringAsync(cts.Token);
-                        _logger.LogError("AuthService: Refresh failed - {StatusCode} - {Error}",
-                            response.StatusCode, error);
-
-                        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
-                        {
-                            throw new UnauthorizedAccessException($"Token refresh failed: {response.StatusCode}");
-                        }
-
-                        throw new HttpRequestException($"Token refresh failed: {response.StatusCode} - {error}");
-                    }
-
-                    var responseContent = await response.Content.ReadAsStringAsync(cts.Token);
-                    var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
-                    var result = JsonSerializer.Deserialize<AuthResponse>(responseContent, options);
-
-                    if (result == null)
-                    {
-                        throw new Exception("Failed to deserialize refresh response");
-                    }
-
-                    return result;
-                },
-                cancellationToken: _cts.Token);
-
-            _logger.LogInformation("AuthService: Token refreshed successfully");
-
-            return authResponse;
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogError("AuthService: Refresh timeout");
-            throw new TimeoutException("Refresh request timed out");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "AuthService: Refresh failed");
-            throw;
-        }
+        // Need to get full AuthResponse - this is a problem
+        // Better to use ITokenRefresh exclusively
+        throw new NotSupportedException("Use ITokenRefresh.GetValidTokenAsync() instead");
     }
 
     public async Task<bool> CheckServerHealthAsync()
@@ -260,239 +145,95 @@ public class AuthService : IDisposable
 
         try
         {
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
-            cts.CancelAfter((int)AppConstants.ServerHealthTimeout.TotalMilliseconds);
-
-            _logger.LogDebug("AuthService: Checking server health");
-
-            var liveResponse = await _httpClient.GetAsync("health/live", cts.Token);
-
-            if (!liveResponse.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("Health check - live endpoint returned {StatusCode}",
-                    liveResponse.StatusCode);
-                return false;
-            }
-
-            var readyResponse = await _httpClient.GetAsync("health/ready", cts.Token);
-
-            if (!readyResponse.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("Health check - ready endpoint returned {StatusCode}",
-                    readyResponse.StatusCode);
-                return false;
-            }
-
-            var content = await readyResponse.Content.ReadAsStringAsync(cts.Token);
-            _logger.LogDebug("Health check details: {Content}", content);
-
-            return true;
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogWarning("Health check - timeout");
-            return false;
-        }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogWarning(ex, "Health check - network error");
-            return false;
+            var response = await _httpClient.GetAsync("health");
+            return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Health check - unexpected error");
+            _logger.LogWarning(ex, "Server health check failed");
             return false;
         }
     }
 
     public async Task<bool> WaitForServerAsync(int timeoutSeconds = 10, CancellationToken cancellationToken = default)
     {
-        ThrowIfDisposed();
+        var startTime = DateTime.UtcNow;
+        var timeout = TimeSpan.FromSeconds(timeoutSeconds);
 
-        var startTime = DateTime.Now;
-
-        using var cts = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken,
-            _cts.Token,
-            new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds)).Token);
-
-        try
+        while (DateTime.UtcNow - startTime < timeout && !cancellationToken.IsCancellationRequested)
         {
-            var attempt = 0;
-            while (!cts.Token.IsCancellationRequested)
+            try
             {
-                attempt++;
-                if (await CheckServerHealthAsync())
-                {
-                    _logger.LogInformation("✅ Server is healthy after {Attempt} attempts", attempt);
-                    return true;
-                }
-
-                _logger.LogDebug("Health check attempt {Attempt} failed, retrying...", attempt);
-                await Task.Delay(AppConstants.HealthCheckRetryDelayMilliseconds, cts.Token);
+                var isHealthy = await CheckServerHealthAsync();
+                if (isHealthy) return true;
             }
-        }
-        catch (OperationCanceledException)
-        {
-            _logger.LogWarning("❌ Server health check timeout after {Timeout}s", timeoutSeconds);
+            catch { /* ignore */ }
+
+            await Task.Delay(500, cancellationToken);
         }
 
         return false;
     }
 
-    #endregion
-
-    #region Guest Conversion
-
-    /// <summary>
-    /// Конвертирует гостя в пользователя (заглушка)
-    /// </summary>
     public async Task<bool> ConvertGuestToUserAsync(Guid guestUserId)
     {
         ThrowIfDisposed();
 
-        // Validate guest user ID
-        if (guestUserId == Guid.Empty)
-        {
-            throw new ArgumentException("Guest user ID cannot be empty", nameof(guestUserId));
-        }
-
-        // Ensure we have a valid current user ID (must be authenticated as guest first)
-        var currentUserId = await GetCurrentUserIdAsync();
-        if (string.IsNullOrEmpty(currentUserId))
-        {
-            throw new InvalidOperationException("No authenticated user found. Please authenticate first.");
-        }
-
-        _logger.LogInformation("AuthService: Converting guest {GuestUserId} to user", guestUserId);
-
-        if (!await _authLock.WaitAsync(TimeSpan.FromSeconds(AppConstants.AuthLockTimeoutSeconds)))
-        {
-            _logger.LogError("AuthService: Failed to acquire lock within 10 seconds");
-            throw new TimeoutException("Authentication service is busy");
-        }
-
         try
         {
-            var request = new
-            {
-                GuestUserId = guestUserId
-            };
-
-            var content = new StringContent(
-                JsonSerializer.Serialize(request),
-                Encoding.UTF8,
-                "application/json");
-
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(_cts.Token);
-            cts.CancelAfter(AppConstants.GuestConversionTimeoutSeconds * 1000);
-
-            var response = await _httpClient.PostAsync("api/auth/convert-guest", content, cts.Token);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var error = await response.Content.ReadAsStringAsync(cts.Token);
-                _logger.LogError("AuthService: Guest conversion failed - {StatusCode} - {Error}",
-                    response.StatusCode, error);
-                return false;
-            }
-
-            _logger.LogInformation("AuthService: Guest converted successfully");
-            return true;
+            var response = await _httpClient.PostAsync($"api/users/{guestUserId}/convert-guest", null);
+            return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "AuthService: Guest conversion exception");
-            return false;
+            _logger.LogError(ex, "Failed to convert guest to user");
+            throw;
         }
     }
 
-    /// <summary>
-    /// Получить ID текущего пользователя из TokenManager
-    /// </summary>
     public async Task<string?> GetCurrentUserIdAsync()
     {
-        ThrowIfDisposed();
-
-        try
+        var userIdStr = await _tokenStorage.GetAsync("user_id");
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
         {
-            // User ID хранится в TokenManager под ключом "user_id"
-            var userId = await _tokenManager.GetEncryptedAsync("user_id");
-            return userId;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "AuthService: Failed to get current user ID");
             return null;
         }
+        return userId.ToString();
     }
 
     #endregion
 
-    #region Private Methods
+    #region Private Helpers
 
-    private async Task<T> ExecuteWithRetryAsync<T>(
-        Func<Task<T>> operation,
-        int maxRetries = 3,
-        CancellationToken cancellationToken = default)
+    private async Task<string> GetOrCreateDeviceIdAsync()
     {
-        int attempt = 0;
-        var baseDelay = TimeSpan.FromMilliseconds(AppConstants.RetryDelayMilliseconds);
-        var maxDelay = TimeSpan.FromSeconds(5);
-
-        while (true)
+        // Check existing device ID
+        var existingDeviceId = await _tokenStorage.GetAsync("device_id");
+        if (!string.IsNullOrEmpty(existingDeviceId))
         {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            try
-            {
-                return await operation();
-            }
-            catch (HttpRequestException ex) when (IsTransientError(ex) && attempt < maxRetries)
-            {
-                attempt++;
-                var delay = TimeSpan.FromMilliseconds(
-                    Math.Min(baseDelay.TotalMilliseconds * Math.Pow(2, attempt), maxDelay.TotalMilliseconds));
-                
-                _logger.LogWarning("Transient error (attempt {Attempt}/{MaxRetries}), retrying in {Delay}ms: {Error}",
-                    attempt, maxRetries, delay.TotalMilliseconds, ex.Message);
-                
-                try
-                {
-                    await Task.Delay(delay, cancellationToken);
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-            }
+            return existingDeviceId;
         }
-    }
 
-    private bool IsTransientError(HttpRequestException ex)
-    {
-        // Consider network failures, timeouts, and 5xx errors as transient
-        return ex.Message.Contains("timeout", StringComparison.OrdinalIgnoreCase) ||
-               ex.Message.Contains("network", StringComparison.OrdinalIgnoreCase) ||
-               ex.Message.Contains("connection", StringComparison.OrdinalIgnoreCase);
+        // Get from Preferences
+        var prefDeviceId = Preferences.Get("server_device_id", null);
+        if (!string.IsNullOrEmpty(prefDeviceId))
+        {
+            return prefDeviceId;
+        }
+
+        // Generate new device ID
+        var newDeviceId = _deviceIdService.GetPersistentDeviceId();
+        await _tokenStorage.SetAsync("device_id", newDeviceId);
+        Preferences.Set("server_device_id", newDeviceId);
+        Preferences.Set("persistent_device_id", _deviceIdService.GetPersistentDeviceId());
+
+        return newDeviceId;
     }
 
     private HttpClient ConfigureHttpClient(HttpClient httpClient)
     {
-        // For Android, a special handler is needed due to certificates
-        if (DeviceInfo.Platform == DevicePlatform.Android)
-        {
-            var handler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = (message, cert, chain, errors) => true
-            };
-            httpClient = new HttpClient(handler);
-        }
-
-        httpClient.DefaultRequestHeaders.Accept.Add(new("application/json"));
         httpClient.BaseAddress = new Uri(_apiBaseUrl);
-
-        // Add User-Agent
+        httpClient.DefaultRequestHeaders.Accept.Add(new("application/json"));
         httpClient.DefaultRequestHeaders.UserAgent.ParseAdd(
             $"HubblyMobile/{AppInfo.Current.VersionString} ({DeviceInfo.Current.Platform}; {DeviceInfo.Current.VersionString})");
 
@@ -502,31 +243,30 @@ public class AuthService : IDisposable
     private void ThrowIfDisposed()
     {
         if (_disposed)
+        {
             throw new ObjectDisposedException(nameof(AuthService));
+        }
     }
 
     #endregion
-
-    #region IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
-
-        _logger.LogInformation("AuthService: Disposing...");
-
-        _cts.Cancel();
-        _cts.Dispose();
-        _authLock.Dispose();
-
-        _httpClient?.CancelPendingRequests();
-        _httpClient?.Dispose();
-
-        _disposed = true;
+        Dispose(true);
         GC.SuppressFinalize(this);
-
-        _logger.LogInformation("AuthService: Disposed");
     }
 
-    #endregion
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!_disposed)
+        {
+            if (disposing)
+            {
+                _cts?.Cancel();
+                _cts?.Dispose();
+                _authLock?.Dispose();
+            }
+            _disposed = true;
+        }
+    }
 }

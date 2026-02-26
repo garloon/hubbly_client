@@ -32,10 +32,10 @@ public class TokenManager : IDisposable
         return value ?? string.Empty;
     }
 
-    public async Task<string?> GetValidTokenAsync(AuthService authService)
+    public async Task<string?> GetValidTokenAsync()
     {
         ThrowIfDisposed();
-        return await _refresh.GetValidTokenAsync(authService);
+        return await _refresh.GetValidTokenAsync();
     }
 
     public void Clear()

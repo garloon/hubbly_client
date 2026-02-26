@@ -90,7 +90,7 @@ public partial class WelcomeViewModel : ObservableObject, IDisposable
 
             // Check if valid token exists
             StatusMessage = "Restoring session...";
-            var tokenValid = await _tokenManager.GetValidTokenAsync(_authService);
+            var tokenValid = await _tokenManager.GetValidTokenAsync();
 
             if (!string.IsNullOrEmpty(tokenValid))
             {
