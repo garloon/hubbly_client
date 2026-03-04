@@ -20,10 +20,18 @@ public class TokenHttpService : ITokenHttpService
     {
         try
         {
+            _logger.LogInformation("Authenticating guest with avatar. BaseAddress: {BaseAddress}", _httpClient.BaseAddress);
             var response = await _httpClient.PostAsJsonAsync("api/auth/guest-avatar", new { avatarConfig = avatarConfigJson });
+            _logger.LogInformation("Response status: {StatusCode}", response.StatusCode);
             response.EnsureSuccessStatusCode();
-            return await response.Content.ReadFromJsonAsync<AuthResponse>() 
-                   ?? throw new InvalidOperationException("Empty response from server");
+            var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
+            if (result == null)
+            {
+                _logger.LogError("Empty response from server");
+                throw new InvalidOperationException("Empty response from server");
+            }
+            _logger.LogInformation("Authentication successful. UserId: {UserId}, Nickname: {Nickname}", result.UserId, result.Nickname);
+            return result;
         }
         catch (Exception ex)
         {
@@ -36,10 +44,18 @@ public class TokenHttpService : ITokenHttpService
     {
         try
         {
+            _logger.LogInformation("Refreshing token. BaseAddress: {BaseAddress}", _httpClient.BaseAddress);
             var response = await _httpClient.PostAsJsonAsync("api/auth/refresh", new { refreshToken, deviceId });
+            _logger.LogInformation("Refresh response status: {StatusCode}", response.StatusCode);
             response.EnsureSuccessStatusCode();
-            return await response.Content.ReadFromJsonAsync<AuthResponse>()
-                   ?? throw new InvalidOperationException("Empty response from server");
+            var result = await response.Content.ReadFromJsonAsync<AuthResponse>();
+            if (result == null)
+            {
+                _logger.LogError("Empty response from server during refresh");
+                throw new InvalidOperationException("Empty response from server");
+            }
+            _logger.LogInformation("Token refresh successful. UserId: {UserId}", result.UserId);
+            return result;
         }
         catch (Exception ex)
         {
@@ -52,7 +68,9 @@ public class TokenHttpService : ITokenHttpService
     {
         try
         {
+            _logger.LogDebug("Checking server health at {BaseAddress}health", _httpClient.BaseAddress);
             var response = await _httpClient.GetAsync("health");
+            _logger.LogInformation("Health check status: {StatusCode}", response.StatusCode);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
@@ -66,19 +84,25 @@ public class TokenHttpService : ITokenHttpService
     {
         var startTime = DateTime.UtcNow;
         var timeout = TimeSpan.FromSeconds(timeoutSeconds);
+        _logger.LogInformation("Waiting for server at {BaseAddress} (timeout: {Timeout}s)", _httpClient.BaseAddress, timeoutSeconds);
 
         while (DateTime.UtcNow - startTime < timeout && !cancellationToken.IsCancellationRequested)
         {
             try
             {
                 var isHealthy = await CheckServerHealthAsync();
-                if (isHealthy) return true;
+                if (isHealthy)
+                {
+                    _logger.LogInformation("Server is healthy after {Elapsed}s", (DateTime.UtcNow - startTime).TotalSeconds);
+                    return true;
+                }
             }
             catch { /* ignore */ }
 
             await Task.Delay(500, cancellationToken);
         }
 
+        _logger.LogWarning("Server did not become healthy within {Timeout}s", timeoutSeconds);
         return false;
     }
 
@@ -86,7 +110,9 @@ public class TokenHttpService : ITokenHttpService
     {
         try
         {
+            _logger.LogInformation("Converting guest user {UserId} to regular user", guestUserId);
             var response = await _httpClient.PostAsync($"api/users/{guestUserId}/convert-guest", null);
+            _logger.LogInformation("Convert guest response: {StatusCode}", response.StatusCode);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)

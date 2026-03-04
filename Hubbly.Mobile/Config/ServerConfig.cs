@@ -17,6 +17,9 @@ public static class ServerConfig
     /// </summary>
     public static string GetServerUrl()
     {
-        return Preferences.Get("server_url", DefaultServerUrl);
+        var url = Preferences.Get("server_url", DefaultServerUrl);
+        // Debug logging to verify which URL is being used
+        Console.WriteLine($"[ServerConfig] Using server URL: {url}");
+        return url;
     }
 }
