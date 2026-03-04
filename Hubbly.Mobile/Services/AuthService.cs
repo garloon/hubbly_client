@@ -75,6 +75,7 @@ public class AuthService : IDisposable
         try
         {
             _logger.LogInformation("AuthService: Authenticating guest with avatar...");
+            _logger.LogDebug("Using BaseAddress: {BaseAddress}, DeviceId: {DeviceId}", _httpClient.BaseAddress, deviceId);
 
             var request = new
             {
@@ -82,12 +83,15 @@ public class AuthService : IDisposable
                 deviceId = deviceId
             };
 
+            _logger.LogDebug("Sending POST to api/auth/guest-avatar");
             var response = await _httpClient.PostAsJsonAsync("api/auth/guest-avatar", request);
+            
+            _logger.LogInformation("Auth response status: {StatusCode}", response.StatusCode);
             
             if (!response.IsSuccessStatusCode)
             {
                 var errorContent = await response.Content.ReadAsStringAsync();
-                _logger.LogError("AuthService: Guest auth failed - {StatusCode}: {Error}", 
+                _logger.LogError("AuthService: Guest auth failed - {StatusCode}: {Error}",
                     response.StatusCode, errorContent);
                 response.EnsureSuccessStatusCode();
             }
@@ -112,7 +116,7 @@ public class AuthService : IDisposable
                 Preferences.Set("access_token_expires", authResponse.ExpiresAt.Value.ToString("o"));
             }
 
-            _logger.LogInformation("AuthService: Guest authenticated successfully. UserId: {UserId}", authResponse.UserId);
+            _logger.LogInformation("AuthService: Guest authenticated successfully. UserId: {UserId}, Nickname: {Nickname}", authResponse.UserId, authResponse.Nickname);
             return authResponse;
         }
         catch (Exception ex)
@@ -145,7 +149,9 @@ public class AuthService : IDisposable
 
         try
         {
+            _logger.LogDebug("Checking server health at {BaseAddress}health", _httpClient.BaseAddress);
             var response = await _httpClient.GetAsync("health");
+            _logger.LogInformation("Health check response: {StatusCode}", response.StatusCode);
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)
@@ -159,19 +165,25 @@ public class AuthService : IDisposable
     {
         var startTime = DateTime.UtcNow;
         var timeout = TimeSpan.FromSeconds(timeoutSeconds);
+        _logger.LogInformation("Waiting for server at {BaseAddress} (timeout: {Timeout}s)", _httpClient.BaseAddress, timeoutSeconds);
 
         while (DateTime.UtcNow - startTime < timeout && !cancellationToken.IsCancellationRequested)
         {
             try
             {
                 var isHealthy = await CheckServerHealthAsync();
-                if (isHealthy) return true;
+                if (isHealthy)
+                {
+                    _logger.LogInformation("Server became healthy after {Elapsed:F1}s", (DateTime.UtcNow - startTime).TotalSeconds);
+                    return true;
+                }
             }
             catch { /* ignore */ }
 
             await Task.Delay(500, cancellationToken);
         }
 
+        _logger.LogWarning("Server did not become healthy within {Timeout}s. BaseAddress: {BaseAddress}", timeoutSeconds, _httpClient.BaseAddress);
         return false;
     }
 
