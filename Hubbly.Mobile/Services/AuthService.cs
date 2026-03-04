@@ -149,8 +149,8 @@ public class AuthService : IDisposable
 
         try
         {
-            _logger.LogDebug("Checking server health at {BaseAddress}health", _httpClient.BaseAddress);
-            var response = await _httpClient.GetAsync("health");
+            _logger.LogDebug("Checking server health at {BaseAddress}health/ready", _httpClient.BaseAddress);
+            var response = await _httpClient.GetAsync("health/ready");
             _logger.LogInformation("Health check response: {StatusCode}", response.StatusCode);
             return response.IsSuccessStatusCode;
         }
