@@ -21,7 +21,7 @@ public class TokenHttpService : ITokenHttpService
         try
         {
             _logger.LogInformation("Authenticating guest with avatar. BaseAddress: {BaseAddress}", _httpClient.BaseAddress);
-            var response = await _httpClient.PostAsJsonAsync("api/auth/guest-avatar", new { avatarConfig = avatarConfigJson });
+            var response = await _httpClient.PostAsJsonAsync("api/auth/guest", new { avatarConfig = avatarConfigJson });
             _logger.LogInformation("Response status: {StatusCode}", response.StatusCode);
             response.EnsureSuccessStatusCode();
             var result = await response.Content.ReadFromJsonAsync<AuthResponse>();

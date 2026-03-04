@@ -63,11 +63,19 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     private ObservableCollection<ChatMessage> _messages = new();
 
     // Avatar collection is now managed by AvatarManagerService
-    private ObservableCollection<AvatarPresence> OnlineAvatars => _avatarManager.OnlineAvatars;
-    private AvatarPresence? SelectedAvatar
+    public ObservableCollection<AvatarPresence> OnlineAvatars => _avatarManager.OnlineAvatars;
+    private AvatarPresence? _selectedAvatar;
+    public AvatarPresence? SelectedAvatar
     {
         get => _avatarManager.SelectedAvatar;
-        set => _avatarManager.SelectedAvatar = value;
+        set
+        {
+            if (_avatarManager.SelectedAvatar != value)
+            {
+                _avatarManager.SelectedAvatar = value;
+                OnPropertyChanged();
+            }
+        }
     }
 
     [ObservableProperty]
@@ -1797,8 +1805,9 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
     /// </summary>
     private async Task SyncAvatarsAndUpdateSelection()
     {
-        _logger.LogDebug("SyncAvatarsAndUpdateSelection - delegating to AvatarManager");
+        _logger.LogDebug("SyncAvatarsAndUpdateSelection - syncing avatars and updating selection");
         await _avatarManager.SyncAvatarsFromSceneAsync();
+        await UpdateSelectedAvatarFrom3DScene();
     }
 
     // Removed - Avatar synchronization now handled by AvatarManagerService

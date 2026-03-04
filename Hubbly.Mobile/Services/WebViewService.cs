@@ -456,29 +456,59 @@ public class WebViewService : IDisposable
                 (function() {
                     try {
                         if (!window.hubbly3d || !window.hubbly3d.getAvatars) {
-                            return '[]';
+                            return [];
                         }
-                        return JSON.stringify(window.hubbly3d.getAvatars());
+                        return window.hubbly3d.getAvatars();
                     } catch(e) {
-                        return '[]';
+                        console.error('GetAvatars error:', e);
+                        return [];
                     }
                 })();
             ";
 
             var result = await EvaluateJavaScriptAsync(js, cancellationToken);
-            
+
+            _logger.LogDebug("GetAvatarsAsync: Raw result: {Result}", result);
+
             // Валидация JSON перед десериализацией
-            if (string.IsNullOrWhiteSpace(result) || result.Length < 2 ||
-                !result.StartsWith("[") || !result.EndsWith("]"))
+            if (string.IsNullOrWhiteSpace(result) || result.Length < 2)
             {
-                _logger.LogWarning("GetAvatarsAsync: Invalid JSON received: {Result}", result);
+                _logger.LogWarning("GetAvatarsAsync: Result is null/whitespace or too short");
                 return new List<AvatarInfo>();
             }
 
-            return JsonSerializer.Deserialize<List<AvatarInfo>>(result, new JsonSerializerOptions
+            // Check if result starts with '[' and ends with ']'
+            if (!result.StartsWith("[") || !result.EndsWith("]"))
             {
-                PropertyNameCaseInsensitive = true
-            }) ?? new List<AvatarInfo>();
+                _logger.LogWarning("GetAvatarsAsync: Result doesn't look like JSON array. Starts with: {FirstChar}, Ends with: {LastChar}",
+                    result[0], result[result.Length - 1]);
+                // Try to extract JSON from the result if it contains error messages
+                var jsonStart = result.IndexOf('[');
+                var jsonEnd = result.LastIndexOf(']');
+                if (jsonStart >= 0 && jsonEnd > jsonStart)
+                {
+                    var extractedJson = result.Substring(jsonStart, jsonEnd - jsonStart + 1);
+                    _logger.LogDebug("GetAvatarsAsync: Extracted JSON: {Extracted}", extractedJson);
+                    result = extractedJson;
+                }
+                else
+                {
+                    return new List<AvatarInfo>();
+                }
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<List<AvatarInfo>>(result, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                }) ?? new List<AvatarInfo>();
+            }
+            catch (JsonException jsonEx)
+            {
+                _logger.LogWarning(jsonEx, "GetAvatarsAsync: JSON deserialization failed. Result: {Result}", result);
+                return new List<AvatarInfo>();
+            }
         }
         catch (OperationCanceledException)
         {

@@ -77,7 +77,7 @@ public class TokenRefresh : ITokenRefresh
         }
     }
 
-    public async Task<string> GetValidTokenAsync()
+    public async Task<string?> GetValidTokenAsync()
     {
         // Simple sequential synchronization
         if (_refreshTask != null)
@@ -162,9 +162,9 @@ public class TokenRefresh : ITokenRefresh
         };
     }
 
-    private async Task<string> RefreshTokenInternalAsync()
+    private async Task<string?> RefreshTokenInternalAsync()
     {
         var result = await RefreshTokenAsync();
-        return result ?? throw new InvalidOperationException("Token refresh failed");
+        return result; // Return null if refresh failed (no refresh token, network error, etc.)
     }
 }

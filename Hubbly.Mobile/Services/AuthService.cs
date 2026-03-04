@@ -84,7 +84,7 @@ public class AuthService : IDisposable
             };
 
             _logger.LogDebug("Sending POST to api/auth/guest-avatar");
-            var response = await _httpClient.PostAsJsonAsync("api/auth/guest-avatar", request);
+            var response = await _httpClient.PostAsJsonAsync("api/auth/guest", request);
             
             _logger.LogInformation("Auth response status: {StatusCode}", response.StatusCode);
             
