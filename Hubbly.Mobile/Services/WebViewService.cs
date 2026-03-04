@@ -405,6 +405,68 @@ public class WebViewService : IDisposable
         }
     }
 
+    public async Task<bool> UpdateAvatarAsync(string userId, string avatarConfigJson)
+    {
+        try
+        {
+            ThrowIfDisposed();
+            
+            if (string.IsNullOrEmpty(userId))
+                throw new ArgumentException("UserId cannot be null or empty", nameof(userId));
+                
+            if (string.IsNullOrEmpty(avatarConfigJson))
+                throw new ArgumentException("AvatarConfigJson cannot be null or empty", nameof(avatarConfigJson));
+            
+            if (!_isSceneReady)
+            {
+                _logger.LogWarning($"UpdateAvatarAsync: Scene not ready, cannot update avatar {userId}");
+                return false;
+            }
+            
+            var safeUserId = EscapeJsString(userId);
+            var safeConfig = EscapeJsString(avatarConfigJson);
+            
+            var js = $@"
+                (function() {{
+                    try {{
+                        if (!window.hubbly3d || !window.hubbly3d.updateAvatar) {{
+                            return 'API_NOT_AVAILABLE';
+                        }}
+                        var config = JSON.parse('{safeConfig}');
+                        var result = window.hubbly3d.updateAvatar('{safeUserId}', config);
+                        return result ? 'SUCCESS' : 'FAILED';
+                    }} catch(e) {{
+                        return 'ERROR: ' + e.message;
+                    }}
+                }})();
+            ";
+            
+            var result = await EvaluateJavaScriptAsync(js, _cts.Token);
+            var success = result == "SUCCESS";
+            
+            if (success)
+            {
+                _logger.LogInformation($"✅ WebViewService: Updated avatar {userId}");
+            }
+            else
+            {
+                _logger.LogWarning($"❌ WebViewService: Failed to update avatar {userId}: {result}");
+            }
+            
+            return success;
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("UpdateAvatarAsync cancelled");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "UpdateAvatarAsync failed for user {UserId}", userId);
+            return false;
+        }
+    }
+
     public async Task<string> GetStatsAsync()
     {
         ThrowIfDisposed();

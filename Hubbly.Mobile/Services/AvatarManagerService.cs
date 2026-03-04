@@ -164,6 +164,53 @@ public class AvatarManagerService : IAvatarManagerService
         }
     }
 
+    public async Task UpdateAvatarAsync(string userId, string avatarConfigJson)
+    {
+        if (!IsValidUserId(userId))
+        {
+            _logger.LogWarning("Invalid user ID for avatar update: {UserId}", userId);
+            return;
+        }
+
+        await _avatarLock.WaitAsync();
+        try
+        {
+            var avatar = OnlineAvatars.FirstOrDefault(a => a.UserId.ToString() == userId);
+            if (avatar != null)
+            {
+                try
+                {
+                    var newConfig = AvatarConfigDto.FromJson(avatarConfigJson);
+                    avatar.AvatarConfig = newConfig;
+                    _logger.LogDebug("✅ Updated avatar for {Nickname} in UI list", avatar.Nickname);
+
+                    // Update in 3D scene
+                    var success = await _webViewService.UpdateAvatarAsync(userId, avatarConfigJson);
+                    if (success)
+                    {
+                        _logger.LogDebug("✅ Updated avatar for {Nickname} in 3D scene", avatar.Nickname);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("❌ Failed to update avatar for {Nickname} in 3D scene", avatar.Nickname);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to parse avatar config during update for user {UserId}", userId);
+                }
+            }
+            else
+            {
+                _logger.LogDebug("Avatar for user {UserId} not found in OnlineAvatars, skipping update", userId);
+            }
+        }
+        finally
+        {
+            _avatarLock.Release();
+        }
+    }
+
     public void ClearProcessedUsers()
     {
         _processedUserIds.Clear();

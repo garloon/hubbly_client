@@ -57,6 +57,7 @@ public class SignalRService : IDisposable
     public event EventHandler<ConnectionStateChangedEventArgs> OnConnectionStateChanged;
     public event EventHandler<string> OnDebugMessage;
     public event EventHandler<(string userId, string animationType)> OnUserPlayAnimation;
+    public event EventHandler<UserAvatarUpdatedData>? OnUserAvatarUpdated;
 
     // Properties
     public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected && _isConnected;
@@ -436,6 +437,7 @@ public class SignalRService : IDisposable
         _subscriptions.Add(connection.On<UserTypingData>("UserTyping", OnUserTypingHandler));
         _subscriptions.Add(connection.On<string>("ReceiveError", OnErrorHandler));
         _subscriptions.Add(connection.On<string, string>("UserPlayAnimation", OnUserPlayAnimationHandler));
+        _subscriptions.Add(connection.On<UserAvatarUpdatedData>("UserAvatarUpdated", OnUserAvatarUpdatedHandler));
 
         return connection;
     }
@@ -810,6 +812,21 @@ public class SignalRService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing UserPlayAnimation");
+        }
+    }
+
+    private void OnUserAvatarUpdatedHandler(UserAvatarUpdatedData data)
+    {
+        try
+        {
+            _logger.LogInformation($"SignalR: User {data.UserId} updated avatar");
+            
+            // Raise event for ViewModels to handle
+            OnUserAvatarUpdated?.Invoke(this, data);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing UserAvatarUpdated");
         }
     }
 

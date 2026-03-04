@@ -249,6 +249,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             _signalRService.OnAuthenticationFailed += OnAuthenticationFailed;
             _signalRService.OnConnectionStateChanged += OnConnectionStateChanged;
             _signalRService.OnUserPlayAnimation += OnUserPlayAnimation;
+            _signalRService.OnUserAvatarUpdated += OnUserAvatarUpdated;
 
             // DISABLED: Avatar click events - using MAUI controls only
             // _webViewService.OnAvatarClicked += OnAvatarClicked;
@@ -314,6 +315,7 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
             _signalRService.OnAuthenticationFailed -= OnAuthenticationFailed;
             _signalRService.OnConnectionStateChanged -= OnConnectionStateChanged;
             _signalRService.OnUserPlayAnimation -= OnUserPlayAnimation;
+            _signalRService.OnUserAvatarUpdated -= OnUserAvatarUpdated;
 
             // DISABLED: Avatar click events - using MAUI controls only
             // _webViewService.OnAvatarClicked -= OnAvatarClicked;
@@ -1218,6 +1220,40 @@ public partial class ChatRoomViewModel : ObservableObject, IDisposable, IAsyncDi
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error handling connection state change");
+        }
+    }
+
+    private async void OnUserAvatarUpdated(object sender, UserAvatarUpdatedData data)
+    {
+        try
+        {
+            _logger.LogInformation("Avatar updated for user {UserId} ({Nickname})",
+                data.UserId, data.Nickname);
+
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                // Update avatar in AvatarManager
+                await _avatarManager.UpdateAvatarAsync(data.UserId, data.AvatarConfigJson);
+
+                // If this is the current user, update CurrentUserAvatar
+                if (data.UserId == _userId)
+                {
+                    try
+                    {
+                        CurrentUserAvatar = AvatarConfigDto.FromJson(data.AvatarConfigJson);
+                        _logger.LogDebug("Updated CurrentUserAvatar: Gender={Gender}",
+                            CurrentUserAvatar.Gender);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to parse avatar config for current user");
+                    }
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error handling user avatar update");
         }
     }
 
