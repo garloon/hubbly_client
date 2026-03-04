@@ -32,6 +32,11 @@ public interface IAvatarManagerService
     Task AddSelfToSceneAsync(string userId, string nickname, string gender);
     
     /// <summary>
+    /// Updates an existing avatar in the UI list and 3D scene
+    /// </summary>
+    Task UpdateAvatarAsync(string userId, string avatarConfigJson);
+    
+    /// <summary>
     /// Clears the processed users tracking
     /// </summary>
     void ClearProcessedUsers();

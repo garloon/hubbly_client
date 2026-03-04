@@ -40,3 +40,16 @@ public class UserLeftData
     [JsonPropertyName("leftAt")]
     public DateTimeOffset LeftAt { get; set; }
 }
+
+// For UserAvatarUpdated event
+public class UserAvatarUpdatedData
+{
+    [JsonPropertyName("userId")]
+    public string UserId { get; set; } = string.Empty;
+
+    [JsonPropertyName("nickname")]
+    public string Nickname { get; set; } = string.Empty;
+
+    [JsonPropertyName("avatarConfigJson")]
+    public string AvatarConfigJson { get; set; } = "{}";
+}

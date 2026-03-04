@@ -1,5 +1,5 @@
 ﻿using Hubbly.Mobile.Config;
- using Hubbly.Mobile.Models;
+using Hubbly.Mobile.Models;
 using Microsoft.AspNetCore.Http.Connections;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
